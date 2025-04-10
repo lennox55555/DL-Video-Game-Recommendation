@@ -1,0 +1,121 @@
+/* Updated src/styles/global.css with retro theme styling */
+:root {
+  --color-primary: #FF2800;
+  --color-secondary: #00B9AE;
+  --color-tertiary: #FFD500;
+  --color-background: #0C093C;
+  --color-text: #F8F8F2;
+  --color-gray-800: #1E1A5A;
+  --color-gray-700: #2C2878;
+  --color-accent-1: #FF709B;
+  --color-accent-2: #4D12EE;
+  --font-family: 'VT323', 'Press Start 2P', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  overflow-x: hidden;
+  letter-spacing: 0.02em;
+}
+
+.glass-effect {
+  background: rgba(30, 26, 90, 0.8);
+  border-radius: 0;
+  border: 3px solid var(--color-accent-1);
+  box-shadow: 0 0 0 5px var(--color-background), 0 0 15px var(--color-accent-1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(to right, var(--color-primary), var(--color-accent-1));
+}
+
+.gradient-bg {
+  background: linear-gradient(180deg, var(--color-primary), var(--color-secondary), var(--color-accent-1));
+  background-size: 300% 300%;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(12, 9, 60, 0.8), rgba(12, 9, 60, 0.8)),
+    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm20 20h20v20H20V20zM0 20h20v20H0V20z' fill='rgba(255,112,155,0.1)' fill-rule='evenodd'/%3E%3C/svg%3E");
+  z-index: -30;
+}
+
+.page::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gradient-text {
+  color: var(--color-accent-1);
+  text-transform: uppercase;
+  text-shadow: 
+    3px 3px 0 var(--color-primary),
+    6px 6px 0 rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.1em;
+}
