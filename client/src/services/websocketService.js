@@ -92,12 +92,49 @@ class WebSocketService {
               if (this.callbacks.onRecommendations) {
                 this.callbacks.onRecommendations(data);
               }
-            } 
-            // Handle errors from the Lambda function
-            else if (data.message && data.message.includes("error")) {
+            }
+            // Handle game options response (making this the first check to prioritize it)
+            else if (data.games && Array.isArray(data.games)) {
+              console.log(`Received game options: ${data.games.length} games`);
+              
+              // Check if we have a valid and reasonable number of games
+              if (data.games.length > 0 && data.games.every(game => typeof game === 'string')) {
+                if (this.callbacks.onGameOptions) {
+                  try {
+                    // Make an explicit copy of the callback before calling it
+                    const callback = this.callbacks.onGameOptions;
+                    // Clear it immediately to prevent double-handling
+                    this.callbacks.onGameOptions = null; 
+                    // Call the callback with the data
+                    callback(data);
+                  } catch (callbackError) {
+                    console.error('Error in game options callback:', callbackError);
+                  }
+                } else {
+                  console.log('Received game options but no callback registered');
+                }
+              } else {
+                console.warn('Received invalid game options data');
+              }
+            }
+            // Handle errors from the Lambda function, but also forward to game options callback if relevant
+            else if (data.message && (data.message.includes("error") || data.success === false)) {
               // Reduce error logging if getting too many
               if (shouldLog) {
                 console.warn('Server reported an error:', data.message);
+              }
+              
+              // Check if this might be a response to a game options request
+              if (this.callbacks.onGameOptions && 
+                  (data.action === 'getGameOptions' || data.requestId)) {
+                // Forward the error to the game options callback
+                try {
+                  const callback = this.callbacks.onGameOptions;
+                  this.callbacks.onGameOptions = null;
+                  callback(data);
+                } catch (callbackError) {
+                  console.error('Error in game options error callback:', callbackError);
+                }
               }
               
               // If getting too many errors, consider reconnecting
@@ -139,9 +176,24 @@ class WebSocketService {
     const message = {
       action: action,
       username: userData.username || this.username || 'anonymous',
-      age: userData.age || 25,
+      // Removed age since we no longer use it
+      modelType: userData.modelType, // Don't use a default - we need to preserve exactly what's selected
       games: userData.games || userData.hobbies || []
     };
+    
+    // Only use Traditional as a fallback if modelType is completely undefined or null
+    if (message.modelType === undefined || message.modelType === null || message.modelType === '') {
+      console.warn('No modelType specified in user data, defaulting to Traditional');
+      message.modelType = 'Traditional';
+    }
+    
+    // Log the model type being sent to ensure it's correct
+    console.log(`Using model type: ${message.modelType}`);
+    
+    // Add game ratings if available
+    if (userData.gameRatings) {
+      message.gameRatings = userData.gameRatings;
+    }
     
     // Add any additional fields that are safe to include
     // Avoid spreading the entire userData to prevent duplicate/conflicting fields
@@ -164,6 +216,29 @@ class WebSocketService {
           .catch(err => console.error('Failed to reconnect:', err));
       }
     }
+  }
+  
+  // Get default games to use as fallback
+  getDefaultGames() {
+    return [
+      'Minecraft', 'Fortnite', 'Zelda', 'Mario',
+      'Pokemon', 'GTA', 'Call of Duty', 'FIFA',
+      'Skyrim'
+    ];
+  }
+  
+  // Simplified function that just returns the default games without making network requests
+  requestGameOptions(count = 9) {
+    return new Promise((resolve) => {
+      // Get default games
+      const games = this.getDefaultGames();
+      
+      // Simulate network delay
+      setTimeout(() => {
+        console.log('Using local game options without network request');
+        resolve(games);
+      }, 100);
+    });
   }
   
   onRecommendations(callback) {
