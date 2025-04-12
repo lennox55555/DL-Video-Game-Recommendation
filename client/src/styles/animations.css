@@ -1,0 +1,63 @@
+/* Updated src/styles/animations.css */
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes bubble-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 107, 107, 0.8);
+  }
+}
+
+.animate-gradient {
+  animation: gradient-x 6s ease infinite;
+}
+
+.animate-float {
+  animation: bubble-float 4s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.6), transparent);
+  animation: bubble-float 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Add urban vintage elements */
+.vintage-line {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 107, 0.3), transparent);
+  width: 80%;
+  opacity: 0.5;
+}
+
+.vintage-circle {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 107, 107, 0.2);
+  opacity: 0.3;
+}
