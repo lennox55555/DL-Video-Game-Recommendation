@@ -2,13 +2,17 @@ import json
 import logging
 import random
 import boto3
+import requests
+import datetime
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Game recommendations by age group and game preference
+EC2_HOST = ""  
+EC2_PORT = 0000 
+EC2_ENDPOINT = f"http://{EC2_HOST}:{EC2_PORT}/process-data"
+
 GAME_RECOMMENDATIONS = {
-    # Age group: < 13
     "kids": {
         "minecraft": [
             {"title": "Terraria", "description": "A 2D sandbox adventure with crafting and exploration"},
@@ -32,7 +36,6 @@ GAME_RECOMMENDATIONS = {
         ]
     },
     
-    # Age group: 13-17
     "teens": {
         "minecraft": [
             {"title": "Satisfactory", "description": "First-person factory building and optimization game"},
@@ -56,7 +59,6 @@ GAME_RECOMMENDATIONS = {
         ]
     },
     
-    # Age group: 18+
     "adults": {
         "skyrim": [
             {"title": "The Witcher 3", "description": "Expansive fantasy RPG with rich storytelling and choices"},
@@ -80,7 +82,6 @@ GAME_RECOMMENDATIONS = {
         ]
     },
     
-    # Default recommendations for any age group
     "default": [
         {"title": "Minecraft", "description": "Creative sandbox with building and exploration"},
         {"title": "Rocket League", "description": "Unique sports game combining soccer and vehicles"},
@@ -92,7 +93,6 @@ GAME_RECOMMENDATIONS = {
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
     
-    # Check if this is a WebSocket event
     route_key = event.get('requestContext', {}).get('routeKey')
     
     if route_key == '$connect':
@@ -102,54 +102,55 @@ def lambda_handler(event, context):
     elif route_key == 'sendUserData':
         return handle_user_data(event)
     else:
-        # Handle direct Lambda invocation (e.g., for testing)
         username = event.get('username', 'anonymous')
         age = event.get('age', 25)
         games = event.get('games', [])
         recommendations = generate_recommendations(username, age, games)
         
+        message_tagged = forward_to_ec2({
+            'username': username,
+            'age': age,
+            'games': games
+        })
+        
         return {
             'statusCode': 200,
-            'recommendations': recommendations
+            'recommendations': recommendations,
+            'ec2_processed': message_tagged
         }
 
 def handle_connect(event):
-    # Log new WebSocket connection
     connection_id = event['requestContext']['connectionId']
     logger.info(f"New connection: {connection_id}")
     return {'statusCode': 200}
 
 def handle_disconnect(event):
-    # Log WebSocket disconnection
     connection_id = event['requestContext']['connectionId']
     logger.info(f"Connection closed: {connection_id}")
     return {'statusCode': 200}
 
 def handle_user_data(event):
-    # Extract connection ID and user data
     connection_id = event['requestContext']['connectionId']
     endpoint_url = f"https://{event['requestContext']['domainName']}/{event['requestContext']['stage']}"
     
-    # Parse the body as JSON
     body = json.loads(event.get('body', '{}'))
     logger.info(f"Received user data: {body}")
     
-    # Extract user information
     username = body.get('username', 'anonymous')
     age = body.get('age', 25)
     games = body.get('games', [])
     
-    # Generate recommendations
+    message_tagged = forward_to_ec2(body)
+    
     recommendations = generate_recommendations(username, age, games)
     
-    # Send response back through WebSocket
     response_data = {
         'statusCode': 200,
-        'recommendations': recommendations
+        'recommendations': recommendations,
+        'ec2_processed': message_tagged
     }
     
     try:
-        # Send the response back through the WebSocket
         api_gateway = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint_url)
         api_gateway.post_to_connection(
             ConnectionId=connection_id,
@@ -161,10 +162,50 @@ def handle_user_data(event):
     
     return {'statusCode': 200}
 
+def forward_to_ec2(message_data):
+    """
+    Forward the message to the EC2 instance and tag it
+    
+    Args:
+        message_data (dict): The message data to forward
+        
+    Returns:
+        bool: True if successfully processed by EC2, False otherwise
+    """
+    try:
+        data_to_forward = message_data.copy()
+        
+        data_to_forward['timestamp'] = datetime.datetime.now().isoformat()
+        
+        data_to_forward['status'] = "passing to ec2"
+        
+        logger.info(f"Forwarding data to EC2: {json.dumps(data_to_forward)}")
+        
+        response = requests.post(
+            EC2_ENDPOINT,
+            json=data_to_forward,
+            headers={'Content-Type': 'application/json'},
+            timeout=100
+        )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            logger.info(f"Successfully forwarded message to EC2: {response_data}")
+            data_to_forward['status'] = "passed to ec2"
+            return True
+        else:
+            logger.error(f"Failed to forward message to EC2. Status code: {response.status_code}")
+            data_to_forward['status'] = "ec2 forwarding failed"
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error forwarding message to EC2: {str(e)}")
+        return False
+
 def generate_recommendations(username, age, games):
     recommendations = []
     
-    # Determine age group
+    # determine age group
     if age < 13:
         age_group = "kids"
     elif age < 18:
@@ -172,17 +213,13 @@ def generate_recommendations(username, age, games):
     else:
         age_group = "adults"
     
-    # If user has selected games, use them for recommendations
     if games:
         for game in games:
-            # Normalize game name to lowercase
             game_lower = game.lower()
             
-            # Try to find recommendations for this specific game in the user's age group
             if game_lower in GAME_RECOMMENDATIONS.get(age_group, {}):
                 game_recs = GAME_RECOMMENDATIONS[age_group][game_lower]
                 
-                # Add a random recommendation for this game
                 if game_recs:
                     rec = random.choice(game_recs)
                     recommendations.append({
@@ -191,12 +228,9 @@ def generate_recommendations(username, age, games):
                         'description': f"Based on your interest in {game}: {rec['description']}"
                     })
     
-    # If we don't have enough recommendations, add some default ones
     if len(recommendations) < 3:
-        # How many more recommendations we need
         needed = 3 - len(recommendations)
         
-        # Add default recommendations
         default_recs = GAME_RECOMMENDATIONS['default'].copy()
         random.shuffle(default_recs)
         
@@ -207,7 +241,6 @@ def generate_recommendations(username, age, games):
                 'description': f"Popular with {age_group}: {default_recs[i]['description']}"
             })
     
-    # Add a personalized age-specific recommendation
     age_specific_rec = {
         'id': len(recommendations) + 1,
         'title': f"Age Group: {age_group.title()}",
@@ -216,5 +249,4 @@ def generate_recommendations(username, age, games):
     
     recommendations.append(age_specific_rec)
     
-    # Return at most 5 recommendations
     return recommendations[:5]
