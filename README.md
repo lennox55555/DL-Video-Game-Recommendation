@@ -113,13 +113,19 @@ How are we evaluating the modeling aproaches
 ## Modeling Approach 
 
 ### Naive 
+
 This system reads the CSV of video games ratings and calculates the average rating for each game. When the user picks a game they like on the web app, the model suggests other high-scoring games while mixing in a bit of randomness to add variety and extra details like a short description. It also checks how good its suggestions are by comparing its predicted scores to real ratings using a simple error metric (RMSE).
 
 ### Traditional Model 
+
 ### Deep Learning Model
 
+The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). 
+
 ## Data Processing pipeline 
-Talk about the data processing pipeline here
+
+The preprocessing pipeline first cleans the video game dataset by handling missing values, standardizing genres, and parsing nested platform information. Genres are converted to lowercase, stripped of whitespace, deduplicated, and one-hot encoded using MultiLabelBinarizer. Platform information is extracted from stringified dictionaries into separate lists of platform names and metascores, which are then expanded into individual columns. Additional features like developer, publisher, product rating, and user score are filled or imputed. The Release Date is converted into a Release Year integer. The final game dataset includes binary genre indicators and platform-specific metascore columns. In parallel, the user interaction dataset is processed by mapping user IDs and game titles to index-based IDs (user_idx, game_idx) using dictionaries for embedding compatibility. Cleaned datasets and mapping files are saved for downstream model use.
+
 
 ## Models evaluated and Model Selected 
 Talk about the actual model performances here and which model we would select
