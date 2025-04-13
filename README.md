@@ -78,6 +78,7 @@ DL-Video-Game-Recomendation/
 
 ## Problem Addressed 
 
+Most video game recommendation systems are integrated within proprietary platforms like the PlayStation Store or Steam. These systems often exhibit inherent biases, as companies tend to promote specific games. Additionally, the recommendations are typically limited to games available on their respective platforms (e.g., Steam focuses exclusively on PC games within its ecosystem or  titles they have rights to) and are tailored solely to their user base. In contrast, our approach stands out because it leverages data from Metacritic, a widely trusted platform where gamers and critics independently share ratings and reviews for a diverse range of games across different platforms and consoles. This dataset spans video games dating back to 1995, many of which are unlikely to be featured on modern proprietary platforms like the PlayStation Store. While we explored datasets related to Steam users in Australia and Steam-specific games, we opted for a platform-agnostic approach that relies on authentic reviews from critics and gamers across various platforms and consoles, ensuring broader coverage and reduced bias. While our goal is to offer a more comprehensive and unbiased approach to recommending video games, we acknowledge that it is impossible to fully account for potential biases in the critics' and gamers' reviews.
 
 ## Data Sources
 **Video Game Dataset**
