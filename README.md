@@ -111,8 +111,10 @@ When it comes to previous efforts done on the datasets, only a few notebooks hav
 How are we evaluating the modeling aproaches 
 
 ## Modeling Approach 
+
 ### Naive 
-Took average ratings of each game title for all users and returned the best one as the recommendation. 
+This system reads the CSV of video games ratings and calculates the average rating for each game. When the user picks a game they like on the web app, the model suggests other high-scoring games while mixing in a bit of randomness to add variety and extra details like a short description. It also checks how good its suggestions are by comparing its predicted scores to real ratings using a simple error metric (RMSE).
+
 ### Traditional Model 
 ### Deep Learning Model
 
