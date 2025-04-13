@@ -108,7 +108,8 @@ This dataset is used in our project to supply users information such as the user
 When it comes to previous efforts done on the datasets, only a few notebooks have been pushed to the Kaggle dataset repo. All of these notebooks are performing EDA on the datasets, but none of them have gone to the extent of creating models to recommend items. One of the notebooks implements an ML model, but that is used to predict game features rather than recommending games. 
 
 ## Model evaluation process & Metric Selection 
-How are we evaluating the modeling aproaches 
+
+The model is evaluated using offline metrics on a held-out test set that contains user-game interactions not seen during training. For each user, the model generates a ranked list of top-K recommended games, excluding items the user has already interacted with. The predicted list is compared against the actual set of games rated by the user in the test set. The evaluation script computes four ranking-based metrics: Precision@K, Recall@K, Mean Average Precision (MAP@K), and Normalized Discounted Cumulative Gain (NDCG@K). These metrics were chosen to assess the model's ability to rank relevant items at the top of the recommendation list. Precision@K captures how many of the top-K items are actually relevant, Recall@K measures coverage of the relevant items, MAP@K rewards both relevance and ordering, and NDCG@K emphasizes the importance of placing relevant items earlier in the list. Together, they provide a comprehensive view of recommendation quality beyond simple rating prediction
 
 ## Modeling Approach 
 
