@@ -130,8 +130,12 @@ Insert link to the deployed app
 Quick TLDR of what's in the README 
 
 ## Ethics Statement
-Insert Ethics Statement here
 
+Our project seeks to address biases in proprietary video game recommendation systems by leveraging data from Metacritic, a trusted platform for independent reviews from gamers and critics. While our approach is platform-agnostic and aims to provide broader coverage, we acknowledge that the data may still contain subjective biases inherent in user and critic reviews.
+
+The datasets used, Video Game Dataset and Metacritic PC Games Reviews, were sourced from Kaggle and collected via web scraping. Since their licensing terms are unclear, we have taken care to use them responsibly and encourage others to verify usage rights before applying them commercially.
+
+We are committed to transparency, ethical data usage, and improving bias mitigation strategies in future iterations of this project. By documenting our methods and assumptions, we aim to build trust while contributing to unbiased video game recommendations.
 
 ## License
 
