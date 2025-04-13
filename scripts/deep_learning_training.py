@@ -107,32 +107,7 @@ def clean_games_df(games_df):
     # drop the original genre and Platform Info columns
     games_df = pd.concat([games_df.drop(columns=['Genres', 'Platform Names', 'Platform Metascores', 'Platforms Info']), genre_df, platform_score_df], axis=1)
 
-    # encode categorical columns
-    cat_encoder = OrdinalEncoder()
-    encoded_cats = cat_encoder.fit_transform(
-        games_df[['Developer', 'Publisher', 'Product Rating']]
-    )
-
-    encoded_cats_df = pd.DataFrame(
-        encoded_cats, columns=['Developer_enc', 'Publisher_enc', 'ProductRating_enc']
-    )
-
-    # keep selected numeric features
-    numerical_df = games_df[['User Score', 'User Ratings Count', 'Release Year']].reset_index(drop=True)
-
-    # combine all processed features
-    feature_df = pd.concat([
-        genre_df.reset_index(drop=True),
-        platform_score_df.reset_index(drop=True),
-        encoded_cats_df.reset_index(drop=True),
-        numerical_df
-    ], axis=1)
-
-    # normalize features
-    scaler = StandardScaler()
-    game_features = scaler.fit_transform(feature_df)
-
-    return games_df, game_features
+    return games_df
 
 def clean_user_df(user_df, games_df):
     '''
@@ -186,12 +161,11 @@ class RecommendationDataset(Dataset):
     '''
     Torch dataset for loading user-game interactions
     '''
-    def __init__(self, ratings_df, game_features):
+    def __init__(self, ratings_df):
         # store data and convert features to tensor
         self.users = ratings_df['user_idx'].astype(int).values
         self.games = ratings_df['game_idx'].astype(int).values
         self.ratings = ratings_df['rating'].values
-        self.game_features = torch.FloatTensor(game_features)
 
     def __len__(self):
         return len(self.ratings)
@@ -201,13 +175,12 @@ class RecommendationDataset(Dataset):
         return {
             'user_idx': torch.tensor(self.users[idx], dtype=torch.long),
             'game_idx': torch.tensor(self.games[idx], dtype=torch.long),
-            'game_features': self.game_features[self.games[idx]],
             'rating': torch.tensor(self.ratings[idx], dtype=torch.float)
         }
 
-class HybridRecommender(nn.Module):
-    def __init__(self, num_users, num_games, num_features, embedding_dim=50):
-        super(HybridRecommender, self).__init__()
+class NCFRecommendationSystem(nn.Module):
+    def __init__(self, num_users, num_games, embedding_dim=50):
+        super(NCFRecommendationSystem, self).__init__()
 
         # Separate embeddings for GMF and MLP paths
         self.user_emb_gmf = nn.Embedding(num_users, embedding_dim)
@@ -220,17 +193,13 @@ class HybridRecommender(nn.Module):
         self.mlp_fc1 = nn.Linear(embedding_dim * 2, 128)
         self.mlp_fc2 = nn.Linear(128, 64)
 
-        # Content-based path
-        self.feature_linear = nn.Linear(num_features, embedding_dim)
-        self.cb_fc1 = nn.Linear(embedding_dim * 2, 64)
-
-        # Final combined layer (GMF + MLP + CB)
-        self.final_fc = nn.Linear(64 + embedding_dim + 64, 1)
+        # Final combined layer (GMF + MLP)
+        self.final_fc = nn.Linear(64 + embedding_dim, 1)
 
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.3)
 
-    def forward(self, user_idx, game_idx, game_features):
+    def forward(self, user_idx, game_idx):
         # GMF path
         u_gmf = self.user_emb_gmf(user_idx)
         v_gmf = self.game_emb_gmf(game_idx)
@@ -244,13 +213,8 @@ class HybridRecommender(nn.Module):
         mlp_x = self.dropout(mlp_x)
         mlp_out = self.relu(self.mlp_fc2(mlp_x))
 
-        # Content-based path
-        content_emb = self.feature_linear(game_features)
-        cb_x = torch.cat([u_mlp, content_emb], dim=1)
-        cb_out = self.relu(self.cb_fc1(cb_x))
-
         # Combine all
-        x = torch.cat([gmf_out, mlp_out, cb_out], dim=1)
+        x = torch.cat([gmf_out, mlp_out], dim=1)
         output = self.final_fc(x)
         return output.squeeze()
 
@@ -275,12 +239,11 @@ def train_model(model, train_loader, optimizer, criterion, epochs=10):
             # move batch to device
             user_idx = batch['user_idx'].to(device)
             game_idx = batch['game_idx'].to(device)
-            game_features = batch['game_features'].to(device)
             ratings = batch['rating'].to(device)
 
             # forward + backward + optimize
             optimizer.zero_grad()
-            outputs = model(user_idx, game_idx, game_features)
+            outputs = model(user_idx, game_idx)
             loss = criterion(outputs, ratings)
             loss.backward()
             optimizer.step()
@@ -312,11 +275,10 @@ def evaluate(model, test_loader, criterion):
             # move batch to device
             user_idx = batch['user_idx'].to(device)
             game_idx = batch['game_idx'].to(device)
-            game_features = batch['game_features'].to(device)
             ratings = batch['rating'].to(device)
 
             # get model outputs
-            outputs = model(user_idx, game_idx, game_features)
+            outputs = model(user_idx, game_idx)
             loss = criterion(outputs, ratings)
 
             # get loss
@@ -330,31 +292,28 @@ def main():
     user_df = pd.read_csv('./data/metacritic_user_data.csv')
 
     # clean datasets
-    cleaned_games_df, game_features = clean_games_df(games_df)
+    cleaned_games_df = clean_games_df(games_df)
     cleaned_users_df, user_mapping, game_mapping = clean_user_df(user_df, cleaned_games_df)
 
     # save cleaned data artifacts
     cleaned_games_df.to_csv('./data/inference_data/cleaned_games_df.csv')
-    np.save('./data/inference_data/game_features.npy', game_features)
     with open('./data/inference_data/user_mapping.json', 'w') as f:
         json.dump(user_mapping, f)
     with open('./data/inference_data/game_mapping.json', 'w') as f:
         json.dump(game_mapping, f)
 
-    train_df, test_df = train_test_split(cleaned_users_df, test_size=0.8, random_state=42)
+    train_df, _ = train_test_split(cleaned_users_df, test_size=0.8, random_state=42)
 
     # create training dataset and dataloader
-    train_dataset = RecommendationDataset(train_df, game_features)
-    test_dataset = RecommendationDataset(test_df, game_features)
+    train_dataset = RecommendationDataset(train_df)
     
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 
     # instantiate the model
     num_users = len(user_mapping)
     num_games = len(game_mapping)
-    num_features = game_features.shape[1]
-    model = HybridRecommender(num_users, num_games, num_features)
+
+    model = NCFRecommendationSystem(num_users, num_games)
     model.to(device)
 
     # define the loss and the optimizer
@@ -366,8 +325,6 @@ def main():
     # train the model
     epochs = 50
     train_model(model, train_loader, optimizer, criterion, epochs=epochs)
-
-    #print(f'Test Loss: {evaluate(model, test_loader, criterion)}')
 
     # save the trained model weights
     torch.save(model.state_dict(), './models/deep_learning_model.pth')
