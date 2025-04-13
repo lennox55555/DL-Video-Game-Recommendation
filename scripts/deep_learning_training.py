@@ -243,8 +243,11 @@ def train_model(model, train_loader, optimizer, criterion, epochs=10):
 
             # forward + backward + optimize
             optimizer.zero_grad()
-            outputs = model(user_idx, game_idx)
-            loss = criterion(outputs, ratings)
+            pos_scores = model(user_idx, game_idx)
+            neg_game_idx = torch.randint(0, model.game_emb_gmf.num_embeddings, game_idx.shape, device=device)
+            neg_scores = model(user_idx, neg_game_idx)
+            loss = criterion(pos_scores, neg_scores)
+
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -286,6 +289,13 @@ def evaluate(model, test_loader, criterion):
 
     return val_loss / len(test_loader)
 
+class BPRLoss(nn.Module):
+    def __init__(self):
+        super(BPRLoss, self).__init__()
+
+    def forward(self, pos_scores, neg_scores):
+        return -torch.mean(torch.log(torch.sigmoid(pos_scores - neg_scores)))
+
 def main():
     # load raw datasets
     games_df = pd.read_csv('./data/all_video_games.csv')
@@ -302,7 +312,13 @@ def main():
     with open('./data/inference_data/game_mapping.json', 'w') as f:
         json.dump(game_mapping, f)
 
-    train_df, _ = train_test_split(cleaned_users_df, test_size=0.8, random_state=42)
+    train_df, test_dataset = train_test_split(cleaned_users_df, test_size=0.65, random_state=42)
+
+    train_user_ids = set(train_df['user_idx'])
+    test_dataset = test_dataset[test_dataset['user_idx'].isin(train_user_ids)]
+
+    test_dataset.to_csv('./data/inference_data/test_dataset.csv')
+    train_df.to_csv('./data/inference_data/train_dataset.csv')
 
     # create training dataset and dataloader
     train_dataset = RecommendationDataset(train_df)
@@ -317,13 +333,13 @@ def main():
     model.to(device)
 
     # define the loss and the optimizer
-    criterion = nn.MSELoss()
+    criterion = BPRLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     print('Starting Training')
 
     # train the model
-    epochs = 50
+    epochs = 900
     train_model(model, train_loader, optimizer, criterion, epochs=epochs)
 
     # save the trained model weights
