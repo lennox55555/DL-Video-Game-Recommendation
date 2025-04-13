@@ -56,18 +56,81 @@ You should see `all_video_games.csv` or other project data files.
 ## Project Structure
 
 ```
-DL-Stock-Picker/
+DL-Video-Game-Recomendation/
 ├── .env                    # AWS credentials (create this file manually)
-├── setup.py                # Main setup file
-├── scripts/                # Utility scripts
+├── setup.py                # Setup file (AWS config, pulling data, and model training)
+├── scripts/                # Utility scripts and scripts used for training models
 │   ├── aws_config.py       # AWS configuration
 │   └── pull_data.py        # Data download utilities
+│   └── naive.py            # naive model 
+│   └── deep_learning_inference.py        # inference script for the deep learning model
+│   └── deep_learning_training.py        # training script for the DL model
+│   └── push_data.py        # script to push data into the AWS S3 Bucket
+│   └── traditional_inference.py        # script to run inference on the trad model
+│   └── traditional_training.py        # script to train the traditional model
 ├── data/                   # Downloaded data files
 │   └── all_video_games.csv # Game data (downloaded during setup)
 ├── models/                 # ML models
 ├── client/                 # Frontend code
-└── server/                 # Backend code
+└── server/                 # Backend code (this is deployed on the EC2 instance)
+└── notebooks/              # notebook for experimentation and quick code execution
 ```
+
+## Problem Addressed 
+
+
+## Data Sources
+**Video Game Dataset**
+- Source: [Video Game Dataset](<https://www.kaggle.com/datasets/beridzeg45/video-games/data>)
+- Author: Beridze Giorgi
+- Description: "The dataset contains all the video games that have been featured on Metacritic.com from 1995 to January 2024. It includes over 14,000 unique video game titles across all platforms and genres"
+- Usability: The dataset is structured in a tabular format, with a usabilty score of 10.0 
+- License: There is no specified license here. The only thing mentioned is "Other (specified in description)", but the description does not contain details about the dataset's license
+- Sourcing: "The data was collected using Python's Selenium and BeautifulSoup libraries" by scraping Metacritic.com website 
+- Details: The dataset contains information about video games such as  Title, Release Date,Developer,Publisher, Genres, Product Rating,User Score,User Ratings Count etc..
+
+This dataset is used in our project to supply items information.
+
+**Metacritic PC Games Reviews**
+- Source: [Video Game Users & Critics Dataset](<https://www.kaggle.com/datasets/beridzeg45/metacritic-pc-games-reviews/data>)
+- Author: Beridze Giorgi
+- Description: "This dataset is a collection of 512 thousand reviews for 5449 different games gathered from Metacritic.com"
+- Usability: The dataset is structured in a tabular format, with a usabilty score of 10.0 
+- License: There is no specified license here. The only thing mentioned is "Other (specified in description)", but the description does not contain details about the dataset's license
+- Sourcing: "The data was collected using Python's Selenium and BeautifulSoup libraries" by scraping Metacritic.com website 
+- Details: The dataset contains information about video games' reviews such as Game Title,Game Poster,Game Release Date,Game Developer,Genre,Platforms,Product Rating,Overall Metascore,Overall User Rating,Reviewer Name,Reviewer Type,Rating Given By The Reviewer,Review Date,Review Text
+- Note: Since the dataset contains reviews from both critics and players, we are making the assumptions that both types of reviewers have played or interacted with the game long enough to be able to submit their review.
+
+This dataset is used in our project to supply users information such as the user's rating of the different games (we are using the Rating Given By The Reviewer and normalizing it between 0 and 10 as the rating and the Reviewer Name as the user_id). 
+
+## Review of relevant previous efforts and literature 
+
+## Model evaluation process & Metric Selection 
+How are we evaluating the modeling aproaches 
+
+## Modeling Approach 
+### Naive 
+### Traditional Model 
+### Deep Learning Model
+
+## Data Processing pipeline 
+Talk about the data processing pipeline here
+
+## Models evaluated and Model Selected 
+Talk about the actual model performances here and which model we would select
+
+## Comparison to Naive Approach 
+Compare traditional and DL to the naive approach
+
+## Demo of Deployed App 
+Insert link to the deployed app 
+
+## Results and Conclusions 
+Quick TLDR of what's in the README 
+
+## Ethics Statement
+Insert Ethics Statement here
+
 
 ## License
 
