@@ -1,5 +1,12 @@
 data/
+<<<<<<< HEAD
+.env
+temp/
+venv/
+.DS_Store
+=======
 venv/
 .env
 server/data/
 
+>>>>>>> development

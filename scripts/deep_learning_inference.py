@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from deep_learning_training import RecommendationDataset, HybridRecommender
+from deep_learning_training import RecommendationDataset, NCFRecommendationSystem
+
+torch.manual_seed(42)
 
 device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 print(f'Using device: {device}')
@@ -25,13 +27,11 @@ class ContentRecommender:
     '''
     Hybrid content-based and collaborative recommender system
     '''
-    def __init__(self, model, user_mapping, games_df, game_features, game_mapping):
+    def __init__(self, model, user_mapping, games_df, game_mapping):
         self.model = model
         self.games_df = games_df
-        self.game_features = game_features
         self.game_mapping = game_mapping
         self.user_mapping = user_mapping
-        self.idx_to_game = {i: title for i, title in enumerate(games_df['Title'].values)}
 
     def recommend(self, user_id=None, new_user_ratings=None, top_n=5):
         '''
@@ -52,7 +52,7 @@ class ContentRecommender:
             return self.recommend_new_user(new_user_ratings, top_n)
         return "Must provide either user_id or new_user_ratings."
 
-    def recommend_new_user(self, new_user_ratings, top_n=5):
+    def recommend_new_user(self, new_user_ratings=None, top_n=5):
         '''
         Generate recommendations for a new user using content-based filtering
 
@@ -63,61 +63,47 @@ class ContentRecommender:
         Returns:
             - list of top_n recommended game titles
         '''
-        # filter ratings to include only games present in the game mapping
+        if not new_user_ratings:
+            popular_indices = self.games_df.sort_values('User Ratings Count', ascending=False).index[:top_n].tolist()
+            idx_to_title = {v: k for k, v in self.game_mapping.items()}
+            return [idx_to_title[i] for i in popular_indices]
+
         valid_ratings = {
             game: rating for game, rating in new_user_ratings.items()
             if game in self.game_mapping
         }
 
-        if not new_user_ratings:
-            # fallback to the most popular games if there's no input
-            popular_indices = self.games_df.sort_values('User Ratings Count', ascending=False).index[:top_n].tolist()
-            return [self.idx_to_game[i] for i in popular_indices]
-
         if not valid_ratings:
             return "None of the provided games exist in our database"
 
-        # build a weighted user profile from rated games
-        rated_game_indices = [self.game_mapping[game] for game in valid_ratings.keys()]
-        rated_game_features = self.game_features[rated_game_indices]
-        ratings_array = np.array(list(valid_ratings.values()))
-        weights = np.ones_like(ratings_array) if ratings_array.max() == ratings_array.min() else (ratings_array - ratings_array.min()) / (ratings_array.max() - ratings_array.min())
-        user_profile = np.average(rated_game_features, axis=0, weights=weights)
-        user_profile_tensor = torch.FloatTensor(user_profile).unsqueeze(0).to(device)
+        # Assign a new user ID and index
+        new_user_id = f"new_user_{len(self.user_mapping)}"
+        new_user_idx = len(self.user_mapping)
+        self.user_mapping[new_user_id] = new_user_idx
 
-        # get user embedding from game feature profile
+        # Expand the user embedding layers
         with torch.no_grad():
-            user_emb = self.model.feature_linear(user_profile_tensor)
+            self.model.user_emb_gmf.weight = torch.nn.Parameter(torch.cat([
+                self.model.user_emb_gmf.weight,
+                torch.randn(1, self.model.user_emb_gmf.embedding_dim).to(device)
+            ]))
+            self.model.user_emb_mlp.weight = torch.nn.Parameter(torch.cat([
+                self.model.user_emb_mlp.weight,
+                torch.randn(1, self.model.user_emb_mlp.embedding_dim).to(device)
+            ]))
 
-            # score all games for this new user
-            all_game_indices = list(range(len(self.game_features)))
-            game_idx_tensor = torch.LongTensor(all_game_indices).to(device)
-            game_feat_tensor = torch.FloatTensor(self.game_features).to(device)
-            user_tensor = user_emb.repeat(len(all_game_indices), 1)
+        # Create ratings DataFrame
+        rating_df = pd.DataFrame({
+            'user_id': new_user_id,
+            'game_title': list(valid_ratings.keys()),
+            'rating': list(valid_ratings.values())
+        })
 
-            # forward pass through model
-            v_gmf = self.model.game_emb_gmf(game_idx_tensor)
-            v_mlp = self.model.game_emb_mlp(game_idx_tensor)
-            feature_emb = self.model.feature_linear(game_feat_tensor)
+        # Fine-tune the new user’s embedding
+        self.update_user_embedding(new_user_id, rating_df, epochs=30, lr=0.01)
 
-            gmf_out = user_tensor * v_gmf
-            mlp_input = torch.cat([user_tensor, v_mlp], dim=1)
-            mlp_out = self.model.relu(self.model.mlp_fc1(mlp_input))
-            mlp_out = self.model.dropout(mlp_out)
-            mlp_out = self.model.relu(self.model.mlp_fc2(mlp_out))
-
-            cb_input = torch.cat([user_tensor, feature_emb], dim=1)
-            cb_out = self.model.relu(self.model.cb_fc1(cb_input))
-
-            all_out = torch.cat([gmf_out, mlp_out, cb_out], dim=1)
-            scores = self.model.final_fc(all_out).squeeze()
-
-        # prevent recommending already-rated games
-        for idx in rated_game_indices:
-            scores[idx] = -float('inf')
-
-        top_indices = torch.topk(scores, top_n).indices.cpu().numpy()
-        return [self.idx_to_game[i] for i in top_indices]
+        # Generate recommendations for the new user
+        return self.recommend_for_known_user(new_user_id, top_n)
 
     def recommend_for_known_user(self, user_id, top_n=5):
         '''
@@ -139,7 +125,6 @@ class ContentRecommender:
         # get all game indices and its corresponding feature subset
         all_game_indices = list(self.game_mapping.values())
         all_game_idx_tensor = torch.LongTensor(all_game_indices).to(device)
-        subset_game_features = torch.FloatTensor(self.game_features[all_game_indices]).to(device)
 
         # evaluate the model
         self.model.eval()
@@ -147,7 +132,7 @@ class ContentRecommender:
             user_tensor = user_idx_tensor.repeat(len(all_game_indices))
             
             # compute predicted scores for all games
-            scores = self.model(user_tensor, all_game_idx_tensor, subset_game_features)
+            scores = self.model(user_tensor, all_game_idx_tensor)
 
         # get the top scoring game indices
         top_indices = torch.topk(scores, top_n).indices.cpu().numpy()
@@ -156,7 +141,7 @@ class ContentRecommender:
         idx_to_title = {v: k for k, v in self.game_mapping.items()}
         return [idx_to_title[i] for i in [all_game_indices[i] for i in top_indices]]
 
-    def update_user_embedding(self, user_id, new_ratings_df, epochs=10, lr=0.01):
+    def update_user_embedding(self, user_id, new_ratings_df, epochs=30, lr=0.01):
         '''
         Function to perform SGD updates on a user embedding
 
@@ -183,7 +168,7 @@ class ContentRecommender:
         new_ratings_df['game_idx'] = new_ratings_df['game_idx'].astype(int)
 
         # create dataset and dataloader from new ratings
-        dataset = RecommendationDataset(new_ratings_df, self.game_features)
+        dataset = RecommendationDataset(new_ratings_df)
         loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
         # freeze all model parameters
@@ -211,12 +196,11 @@ class ContentRecommender:
                 # move batch to device
                 user_idx_batch = batch['user_idx'].to(device)
                 game_idx = batch['game_idx'].to(device)
-                game_features = batch['game_features'].to(device)
                 ratings = batch['rating'].to(device)
 
                 # forward + backward + step
                 optimizer.zero_grad()
-                preds = self.model(user_idx_batch, game_idx, game_features)
+                preds = self.model(user_idx_batch, game_idx)
                 loss = torch.nn.MSELoss()(preds.view(-1), ratings.view(-1))
                 loss.backward()
                 optimizer.step()
@@ -229,7 +213,6 @@ def main():
 
     # load artifacts
     cleaned_games_df = pd.read_csv('data/inference_data/cleaned_games_df.csv')
-    game_features = np.load('data/inference_data/game_features.npy')
     with open('data/inference_data/user_mapping.json') as f:
         user_mapping = json.load(f)
     with open('data/inference_data/game_mapping.json') as f:
@@ -238,20 +221,20 @@ def main():
     # restore model
     num_users = len(user_mapping)
     num_games = len(game_mapping)
-    num_features = game_features.shape[1]
-    model = HybridRecommender(num_users, num_games, num_features)
+
+    model = NCFRecommendationSystem(num_users, num_games)
     model.load_state_dict(torch.load('./models/deep_learning_model.pth'))
     model.to(device)
 
     # initialize recommender
-    recommender = ContentRecommender(model, user_mapping, cleaned_games_df, game_features, game_mapping)
+    recommender = ContentRecommender(model, user_mapping, cleaned_games_df, game_mapping)
 
     # print updated user recs
     recs = recommender.recommend(user_id='MatikTheSeventh')
     print("Original user recommendation:", recs)
 
     # update user embedding with few new ratings
-    new_ratings = held_out_user_df.sample(3).copy()
+    new_ratings = user_df.sample(n=20, random_state=42).copy()
     new_ratings['user_id'] = 'MatikTheSeventh'
     recommender.update_user_embedding('MatikTheSeventh', new_ratings)
 
