@@ -104,13 +104,15 @@ This dataset is used in our project to supply items information.
 
 This dataset is used in our project to supply users information such as the user's rating of the different games (we are using the Rating Given By The Reviewer and normalizing it between 0 and 10 as the rating and the Reviewer Name as the user_id). 
 
-## Review of relevant previous efforts and literature 
+## Review of Relevant Previous Efforts on this Dataset
+When it comes to previous efforts done on the datasets, only a few notebooks have been pushed to the Kaggle dataset repo. All of these notebooks are performing EDA on the datasets, but none of them have gone to the extent of creating models to recommend items. One of the notebooks implements an ML model, but that is used to predict game features rather than recommending games. 
 
 ## Model evaluation process & Metric Selection 
 How are we evaluating the modeling aproaches 
 
 ## Modeling Approach 
 ### Naive 
+Took average ratings of each game title for all users and returned the best one as the recommendation. 
 ### Traditional Model 
 ### Deep Learning Model
 
