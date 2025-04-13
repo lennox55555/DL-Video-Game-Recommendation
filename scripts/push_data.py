@@ -75,6 +75,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     data_pusher = DataPusher()
     data_pusher.push_data("fake_user_data.csv")
+    print("User data addition")
 
 if __name__ == "__main__":
     main()
