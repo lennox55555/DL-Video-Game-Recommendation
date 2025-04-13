@@ -8,47 +8,134 @@ import { useUser } from '../context/UserContext';
 import websocketService from '../services/websocketService';
 
 const GamesPage = () => {
-  const { user, addHobby, removeHobby, updateBackgroundSettings } = useUser();
+  const { user, addHobby, removeHobby, updateBackgroundSettings, updateGameRating, updateUser } = useUser();
   const navigate = useNavigate();
   const [selectedGameThemes, setSelectedGameThemes] = useState({});
+  const [showRatings, setShowRatings] = useState(false);
+
+  // State for available games and loading state
+  const [availableGames, setAvailableGames] = useState([
+    'Minecraft', 'Fortnite', 'Zelda', 'Mario',
+    'Pokemon', 'GTA', 'COD', 'FIFA',
+    'Skyrim'
+  ]); // Start with default games to avoid empty state
+  const [isLoadingGames, setIsLoadingGames] = useState(false); // Start as false since we have default games
+  const [gamesError, setGamesError] = useState('');
+
+  // Only shuffle games when the user explicitly asks for new options
+  const shuffleGames = () => {
+    // Simple Fisher-Yates shuffle to reorder the games
+    const games = [...availableGames];
+    for (let i = games.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [games[i], games[j]] = [games[j], games[i]];
+    }
+    setAvailableGames(games);
+  };
+  
+  // This function is now only used for the explicit refresh button
+  const fetchGameOptions = () => {
+    // Show loading state briefly for visual feedback
+    setIsLoadingGames(true);
+    
+    // Simulate a brief loading delay
+    setTimeout(() => {
+      shuffleGames();
+      setIsLoadingGames(false);
+    }, 500);
+  };
 
   // Redirect if no username set
   useEffect(() => {
     if (!user.username) {
       navigate('/');
+      return;
     }
+    
+    // Do NOT fetch game options on initial mount
+    // This prevents the automatic shuffling that was happening
+    
+    // Cleanup function
+    return () => {
+      // Any cleanup needed for WebSocket
+    };
   }, [user.username, navigate]);
 
-  const games = [
-    'Minecraft', 'Fortnite', 'Zelda', 'Mario',
-    'Pokemon', 'GTA', 'COD', 'FIFA',
-    'Skyrim', 'Sims', 'Among Us', 'Cyberpunk'
-  ];
+  // Refresh game options function - reuse the fetchGameOptions function
+  const refreshGameOptions = () => {
+    fetchGameOptions();
+  };
 
+  // Simplified game click handler to minimize state updates
   const handleGameClick = (game, colorTheme) => {
-    // Toggle game selection
-    if (user.hobbies.includes(game)) {
-      removeHobby(game);
-      
-      // Remove this game's theme from selected themes
-      const newThemes = { ...selectedGameThemes };
-      delete newThemes[game];
-      setSelectedGameThemes(newThemes);
-      
-      // Update background with remaining themes or default
-      updateBackgroundFromThemes(newThemes);
-    } else {
-      addHobby(game);
-      
-      // Add this game's theme to selected themes
-      const newThemes = { 
-        ...selectedGameThemes,
-        [game]: colorTheme 
-      };
-      setSelectedGameThemes(newThemes);
-      
-      // Update background with new theme
-      updateBackgroundFromThemes(newThemes);
+    // Wrap in single state updates to prevent refresh
+    try {
+      // For Naive model, only allow one game selection
+      if (user.modelType === 'Naive') {
+        // If clicking on an already selected game, deselect it
+        if (user.hobbies.includes(game)) {
+          // Remove the game and its theme
+          removeHobby(game);
+          
+          // Update themes
+          const newThemes = { ...selectedGameThemes };
+          delete newThemes[game];
+          setSelectedGameThemes(newThemes);
+          updateBackgroundFromThemes(newThemes);
+        } else {
+          // For Naive model, replace current selection with the new game
+          
+          // For Naive model, we want to replace all current selections
+          // Clear previous selections first
+          const oldGames = [...user.hobbies];
+          if (oldGames.length > 0) {
+            // Remove all existing games first
+            oldGames.forEach(oldGame => {
+              if (oldGame !== game) { // Don't remove the game we're about to add
+                removeHobby(oldGame);
+              }
+            });
+          }
+          
+          // Add the new game (only if not already included)
+          if (!user.hobbies.includes(game)) {
+            addHobby(game);
+          }
+          
+          // Set the theme for just this game
+          const newThemes = { [game]: colorTheme };
+          setSelectedGameThemes(newThemes);
+          updateBackgroundFromThemes(newThemes);
+        }
+      } else {
+        // Normal behavior for Deep Learning and Traditional models
+        if (user.hobbies.includes(game)) {
+          // If already selected, remove the game
+          removeHobby(game);
+          
+          // Remove from themes
+          const newThemes = { ...selectedGameThemes };
+          delete newThemes[game];
+          setSelectedGameThemes(newThemes);
+          updateBackgroundFromThemes(newThemes);
+          
+          // Remove rating
+          updateGameRating(game, 0);
+        } else {
+          // If not selected, add the game
+          addHobby(game);
+          
+          // Add to themes
+          const newThemes = { ...selectedGameThemes, [game]: colorTheme };
+          setSelectedGameThemes(newThemes);
+          updateBackgroundFromThemes(newThemes);
+          
+          // Set default rating
+          updateGameRating(game, 5);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling game click:', error);
     }
   };
 
@@ -80,19 +167,48 @@ const GamesPage = () => {
     });
   };
 
+  // Handle rating change for a game
+  const handleRatingChange = (game, rating) => {
+    updateGameRating(game, rating);
+  };
+
   const handleContinue = () => {
+    // For Deep Learning and Traditional models, show ratings after game selection
+    if ((user.modelType === 'Deep Learning' || user.modelType === 'Traditional') && !showRatings && user.hobbies.length > 0) {
+      setShowRatings(true);
+      return;
+    }
+    
     // Send the user data to the WebSocket before navigating
     websocketService.sendUserData({
       username: user.username,
-      age: user.age,
+      // Removed age field
+      modelType: user.modelType,
       games: user.hobbies, // Send the selected games to match Lambda's expected format
+      gameRatings: user.gameRatings, // Send ratings for each game
       preferences: selectedGameThemes // Additional data that might be useful
     });
 
     console.log('Sending game preferences to server:', user.hobbies);
+    console.log('Sending game ratings to server:', user.gameRatings);
     
     // Navigate to the main page where recommendations will be displayed
     navigate('/main');
+  };
+
+  // Determine if the user should be allowed to proceed based on model type
+  const canProceed = () => {
+    if (user.hobbies.length === 0) return false;
+    
+    // For Naive model, one game selection is enough
+    if (user.modelType === 'Naive') return user.hobbies.length === 1;
+    
+    // For rating mode, check if all selected games have ratings
+    if (showRatings) {
+      return user.hobbies.every(game => user.gameRatings[game] > 0);
+    }
+    
+    return true;
   };
 
   return (
@@ -107,34 +223,123 @@ const GamesPage = () => {
         style={{ width: '100%', maxWidth: '768px', padding: '2rem' }}
       >
         <h1 className="gradient-text" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-          SELECT YOUR GAMES
+          {showRatings ? 'RATE YOUR GAMES' : 'SELECT YOUR GAMES'}
         </h1>
         
-        <p style={{ textAlign: 'center', color: 'var(--color-accent-1)', marginBottom: '1.5rem', fontFamily: 'VT323, monospace', fontSize: '1.2rem' }}>
-          Choose games to get personalized recommendations
-        </p>
-        
-        <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '2rem' }}>
-          {games.map((game) => (
-            <GameCard
-              key={game}
-              game={game}
-              selected={user.hobbies.includes(game)}
-              onClick={handleGameClick}
-            />
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <p style={{ textAlign: 'center', color: 'var(--color-accent-1)', fontFamily: 'VT323, monospace', fontSize: '1.2rem', margin: 0 }}>
+            {showRatings 
+              ? 'Rate how much you enjoy each game (1-10)' 
+              : user.modelType === 'Naive' 
+                ? 'Choose ONE game for recommendations' 
+                : 'Choose games to get personalized recommendations'}
+          </p>
+          
+          {!showRatings && (
+            <button 
+              onClick={refreshGameOptions}
+              disabled={isLoadingGames}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: 'var(--color-accent-1)',
+                cursor: isLoadingGames ? 'not-allowed' : 'pointer',
+                marginLeft: '10px',
+                opacity: isLoadingGames ? 0.5 : 1,
+                fontSize: '0.9rem'
+              }}
+            >
+              ↻ New Options
+            </button>
+          )}
         </div>
         
+        {!showRatings ? (
+          <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '2rem' }}>
+            {isLoadingGames ? (
+              <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '2rem 0' }}>
+                <p>Loading game options...</p>
+              </div>
+            ) : (
+              <>
+                {gamesError && (
+                  <div style={{ gridColumn: 'span 4', textAlign: 'center', marginBottom: '1rem' }}>
+                    <p style={{ color: 'red' }}>{gamesError}</p>
+                  </div>
+                )}
+                {availableGames.map((game) => (
+                  <GameCard
+                    key={game}
+                    game={game}
+                    selected={user.hobbies.includes(game)}
+                    onClick={handleGameClick}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginBottom: '2rem' }}>
+            {user.hobbies.map((game) => (
+              <div key={game} style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                marginBottom: '1rem',
+                padding: '0.75rem',
+                borderRadius: '0.5rem',
+                background: 'rgba(255, 255, 255, 0.1)'
+              }}>
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>{game}</div>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ width: '40px', textAlign: 'center' }}>
+                      {user.gameRatings[game] || 0}
+                    </div>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="10" 
+                      value={user.gameRatings[game] || 0} 
+                      onChange={(e) => handleRatingChange(game, parseInt(e.target.value))}
+                      style={{ flexGrow: 1 }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ color: 'var(--color-accent-1)', fontFamily: 'VT323, monospace', fontSize: '1.2rem' }}>
-            SELECTED: <span style={{ fontWeight: 'bold', color: 'var(--color-tertiary)' }}>{user.hobbies.length}</span>
-          </p>
+          {!showRatings ? (
+            <p style={{ color: 'var(--color-accent-1)', fontFamily: 'VT323, monospace', fontSize: '1.2rem' }}>
+              SELECTED: <span style={{ fontWeight: 'bold', color: 'var(--color-tertiary)' }}>{user.hobbies.length}</span>
+              {user.modelType === 'Naive' && user.hobbies.length > 1 && 
+                <span style={{ color: 'red', marginLeft: '0.5rem' }}>
+                  (Only one allowed)
+                </span>
+              }
+            </p>
+          ) : (
+            <button 
+              onClick={() => setShowRatings(false)}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: 'var(--color-accent-1)',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Back to Selection
+            </button>
+          )}
           
           <BubbleButton 
             onClick={handleContinue} 
-            disabled={user.hobbies.length === 0}
+            disabled={!canProceed()}
           >
-            CONTINUE
+            {showRatings ? 'SUBMIT RATINGS' : user.modelType === 'Naive' ? 'CHOOSE THIS GAME' : 'CONTINUE'}
           </BubbleButton>
         </div>
       </motion.div>
