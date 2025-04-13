@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 from sklearn.preprocessing import MultiLabelBinarizer, OrdinalEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -133,7 +134,7 @@ def clean_games_df(games_df):
 
     return games_df, game_features
 
-def clean_user_df(user_df):
+def clean_user_df(user_df, games_df):
     '''
     Function to map user and game ids to indices
 
@@ -147,11 +148,13 @@ def clean_user_df(user_df):
     '''
     # create index mappings for users and games
     user_mapping = get_user_id_mappings(user_df)
-    game_mapping = get_user_title_mapping(user_df)
+    game_mapping = get_game_mapping(games_df)
 
     # apply mappings to new columns
     user_df['user_idx'] = user_df['user_id'].map(user_mapping)
     user_df['game_idx'] = user_df['game_title'].map(game_mapping)
+
+    user_df = user_df.dropna()
 
     return user_df, user_mapping, game_mapping
 
@@ -167,7 +170,7 @@ def get_user_id_mappings(user_df):
     '''
     return {user: i for i, user in enumerate(user_df['user_id'].unique())}
 
-def get_user_title_mapping(user_df):
+def get_game_mapping(games_df):
     '''
     Function to create mapping from game_title to integer index
 
@@ -177,7 +180,7 @@ def get_user_title_mapping(user_df):
     Returns:
         - dictionary mapping game_title to index
     '''
-    return {game: i for i, game in enumerate(user_df['game_title'].unique())}
+    return {title: i for i, title in enumerate(games_df['Title'].tolist())}
 
 class RecommendationDataset(Dataset):
     '''
@@ -185,8 +188,8 @@ class RecommendationDataset(Dataset):
     '''
     def __init__(self, ratings_df, game_features):
         # store data and convert features to tensor
-        self.users = ratings_df['user_idx'].values
-        self.games = ratings_df['game_idx'].values
+        self.users = ratings_df['user_idx'].astype(int).values
+        self.games = ratings_df['game_idx'].astype(int).values
         self.ratings = ratings_df['rating'].values
         self.game_features = torch.FloatTensor(game_features)
 
@@ -203,44 +206,53 @@ class RecommendationDataset(Dataset):
         }
 
 class HybridRecommender(nn.Module):
-    '''
-    Hybrid recommendation model combining collaborative and content-based filtering
-    '''
     def __init__(self, num_users, num_games, num_features, embedding_dim=50):
         super(HybridRecommender, self).__init__()
 
-        # embedding layers for collaborative filtering
-        self.user_embedding = nn.Embedding(num_users, embedding_dim)
-        self.game_embedding = nn.Embedding(num_games, embedding_dim)
+        # Separate embeddings for GMF and MLP paths
+        self.user_emb_gmf = nn.Embedding(num_users, embedding_dim)
+        self.game_emb_gmf = nn.Embedding(num_games, embedding_dim)
 
-        # linear layer for content features
+        self.user_emb_mlp = nn.Embedding(num_users, embedding_dim)
+        self.game_emb_mlp = nn.Embedding(num_games, embedding_dim)
+
+        # MLP layers for NCF path
+        self.mlp_fc1 = nn.Linear(embedding_dim * 2, 128)
+        self.mlp_fc2 = nn.Linear(128, 64)
+
+        # Content-based path
         self.feature_linear = nn.Linear(num_features, embedding_dim)
+        self.cb_fc1 = nn.Linear(embedding_dim * 2, 64)
 
-        # dense layers to process combined representation
-        self.fc1 = nn.Linear(embedding_dim * 3, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 1)
+        # Final combined layer (GMF + MLP + CB)
+        self.final_fc = nn.Linear(64 + embedding_dim + 64, 1)
+
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, user_idx, game_idx, game_features):
-        # get user and game embeddings
-        user_emb = self.user_embedding(user_idx)
-        game_emb = self.game_embedding(game_idx)
+        # GMF path
+        u_gmf = self.user_emb_gmf(user_idx)
+        v_gmf = self.game_emb_gmf(game_idx)
+        gmf_out = u_gmf * v_gmf
 
-        # project game content features
-        features = self.feature_linear(game_features)
+        # MLP path
+        u_mlp = self.user_emb_mlp(user_idx)
+        v_mlp = self.game_emb_mlp(game_idx)
+        mlp_x = torch.cat([u_mlp, v_mlp], dim=1)
+        mlp_x = self.relu(self.mlp_fc1(mlp_x))
+        mlp_x = self.dropout(mlp_x)
+        mlp_out = self.relu(self.mlp_fc2(mlp_x))
 
-        # concatenate all three parts
-        x = torch.cat([user_emb, game_emb, features], dim=1)
+        # Content-based path
+        content_emb = self.feature_linear(game_features)
+        cb_x = torch.cat([u_mlp, content_emb], dim=1)
+        cb_out = self.relu(self.cb_fc1(cb_x))
 
-        # forward pass through fc layers
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
-        return x.squeeze()
+        # Combine all
+        x = torch.cat([gmf_out, mlp_out, cb_out], dim=1)
+        output = self.final_fc(x)
+        return output.squeeze()
 
 def train_model(model, train_loader, optimizer, criterion, epochs=10):
     '''
@@ -274,7 +286,7 @@ def train_model(model, train_loader, optimizer, criterion, epochs=10):
             optimizer.step()
             train_loss += loss.item()
 
-        if epoch % 10 == 0:
+        if epoch % 1 == 0:
             print(f"Epoch {epoch} - Loss: {train_loss:.4f}")
 
 def evaluate(model, test_loader, criterion):
@@ -315,15 +327,11 @@ def evaluate(model, test_loader, criterion):
 def main():
     # load raw datasets
     games_df = pd.read_csv('./data/all_video_games.csv')
-    user_df = pd.read_csv('./data/fake_user_data.csv')
-
-    # hold out a single user for inference testing
-    held_out_user = 'hollandmichael'
-    user_df_filtered = user_df[user_df['user_id'] != held_out_user].copy()
+    user_df = pd.read_csv('./data/metacritic_user_data.csv')
 
     # clean datasets
     cleaned_games_df, game_features = clean_games_df(games_df)
-    cleaned_users_df, user_mapping, game_mapping = clean_user_df(user_df_filtered)
+    cleaned_users_df, user_mapping, game_mapping = clean_user_df(user_df, cleaned_games_df)
 
     # save cleaned data artifacts
     cleaned_games_df.to_csv('./data/inference_data/cleaned_games_df.csv')
@@ -333,9 +341,14 @@ def main():
     with open('./data/inference_data/game_mapping.json', 'w') as f:
         json.dump(game_mapping, f)
 
+    train_df, test_df = train_test_split(cleaned_users_df, test_size=0.8, random_state=42)
+
     # create training dataset and dataloader
-    train_dataset = RecommendationDataset(cleaned_users_df, game_features)
+    train_dataset = RecommendationDataset(train_df, game_features)
+    test_dataset = RecommendationDataset(test_df, game_features)
+    
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 
     # instantiate the model
     num_users = len(user_mapping)
@@ -348,9 +361,13 @@ def main():
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+    print('Starting Training')
+
     # train the model
-    epochs = 600
+    epochs = 50
     train_model(model, train_loader, optimizer, criterion, epochs=epochs)
+
+    #print(f'Test Loss: {evaluate(model, test_loader, criterion)}')
 
     # save the trained model weights
     torch.save(model.state_dict(), './models/deep_learning_model.pth')

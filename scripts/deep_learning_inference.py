@@ -89,21 +89,28 @@ class ContentRecommender:
         with torch.no_grad():
             user_emb = self.model.feature_linear(user_profile_tensor)
 
-        # score all games for this new user
-        all_game_indices = list(range(len(self.game_features)))
-        game_idx_tensor = torch.LongTensor(all_game_indices).to(device)
-        game_feat_tensor = torch.FloatTensor(self.game_features).to(device)
-        user_tensor = user_emb.repeat(len(all_game_indices), 1)
+            # score all games for this new user
+            all_game_indices = list(range(len(self.game_features)))
+            game_idx_tensor = torch.LongTensor(all_game_indices).to(device)
+            game_feat_tensor = torch.FloatTensor(self.game_features).to(device)
+            user_tensor = user_emb.repeat(len(all_game_indices), 1)
 
-        with torch.no_grad():
-            game_emb = self.model.game_embedding(game_idx_tensor)
+            # forward pass through model
+            v_gmf = self.model.game_emb_gmf(game_idx_tensor)
+            v_mlp = self.model.game_emb_mlp(game_idx_tensor)
             feature_emb = self.model.feature_linear(game_feat_tensor)
-            x = torch.cat([user_tensor, game_emb, feature_emb], dim=1)
-            x = self.model.relu(self.model.fc1(x))
-            x = self.model.dropout(x)
-            x = self.model.relu(self.model.fc2(x))
-            x = self.model.dropout(x)
-            scores = self.model.fc3(x).squeeze()
+
+            gmf_out = user_tensor * v_gmf
+            mlp_input = torch.cat([user_tensor, v_mlp], dim=1)
+            mlp_out = self.model.relu(self.model.mlp_fc1(mlp_input))
+            mlp_out = self.model.dropout(mlp_out)
+            mlp_out = self.model.relu(self.model.mlp_fc2(mlp_out))
+
+            cb_input = torch.cat([user_tensor, feature_emb], dim=1)
+            cb_out = self.model.relu(self.model.cb_fc1(cb_input))
+
+            all_out = torch.cat([gmf_out, mlp_out, cb_out], dim=1)
+            scores = self.model.final_fc(all_out).squeeze()
 
         # prevent recommending already-rated games
         for idx in rated_game_indices:
@@ -184,13 +191,18 @@ class ContentRecommender:
             param.requires_grad = False
 
         # enable training for user embeddings only
-        self.model.user_embedding.weight.requires_grad = True
+        self.model.user_emb_gmf.weight.requires_grad = True
+        self.model.user_emb_mlp.weight.requires_grad = True
 
         # apply selective gradient mask so only this user's embedding updates
-        freeze_all_but_one(self.model.user_embedding, user_idx)
+        freeze_all_but_one(self.model.user_emb_gmf, user_idx)
+        freeze_all_but_one(self.model.user_emb_mlp, user_idx)
 
         # use SGD optimizer on user embeddings
-        optimizer = torch.optim.SGD([self.model.user_embedding.weight], lr=lr)
+        optimizer = torch.optim.SGD([
+            self.model.user_emb_gmf.weight,
+            self.model.user_emb_mlp.weight
+        ], lr=lr)
 
         # set model to train mode
         self.model.train()
@@ -211,8 +223,8 @@ class ContentRecommender:
 
 def main():
     # load user and model data
-    user_df = pd.read_csv('./data/fake_user_data.csv')
-    held_out_user = 'hollandmichael'
+    user_df = pd.read_csv('./data/metacritic_user_data.csv')
+    held_out_user = 'Murdockk'
     held_out_user_df = user_df[user_df['user_id'] == held_out_user].copy()
 
     # load artifacts
@@ -234,19 +246,23 @@ def main():
     # initialize recommender
     recommender = ContentRecommender(model, user_mapping, cleaned_games_df, game_features, game_mapping)
 
+    # print updated user recs
+    recs = recommender.recommend(user_id='MatikTheSeventh')
+    print("Original user recommendation:", recs)
+
     # update user embedding with few new ratings
     new_ratings = held_out_user_df.sample(3).copy()
-    new_ratings['user_id'] = 'davisjulie'
-    recommender.update_user_embedding('davisjulie', new_ratings)
+    new_ratings['user_id'] = 'MatikTheSeventh'
+    recommender.update_user_embedding('MatikTheSeventh', new_ratings)
 
     # print updated user recs
-    recs = recommender.recommend(user_id='davisjulie')
-    print("Updated user recs:", recs)
+    recs = recommender.recommend(user_id='MatikTheSeventh')
+    print("User recs after updating embeddings:", recs)
 
     # simulate cold start
     cold_user_ratings = dict(held_out_user_df[['game_title', 'rating']].values)
     cold_recs = recommender.recommend(new_user_ratings=cold_user_ratings)
-    print("New user recs:", cold_recs)
+    print("New user (cold start) recs:", cold_recs)
 
 if __name__ == '__main__':
     main()
