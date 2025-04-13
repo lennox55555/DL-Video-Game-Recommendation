@@ -21,44 +21,105 @@ const GamesPage = () => {
   ]); // Start with default games to avoid empty state
   const [isLoadingGames, setIsLoadingGames] = useState(false); // Start as false since we have default games
   const [gamesError, setGamesError] = useState('');
+  
+  // State to store all game titles from JSON
+  const [allGameTitles, setAllGameTitles] = useState([]);
 
-  // Only shuffle games when the user explicitly asks for new options
-  const shuffleGames = () => {
-    // Simple Fisher-Yates shuffle to reorder the games
-    const games = [...availableGames];
-    for (let i = games.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [games[i], games[j]] = [games[j], games[i]];
+  // This function is no longer needed as we're selecting random games from a large pool
+  // instead of shuffling a fixed set of games
+  
+  // Function to get random game titles from our local JSON data
+  const fetchGameOptions = () => {
+    // Show loading state
+    setIsLoadingGames(true);
+    setGamesError('');
+    
+    // If we've already loaded the titles, just pick 12 random ones
+    if (allGameTitles.length > 0) {
+      try {
+        // Pick 12 random games from our full list
+        const randomGames = getRandomGames(allGameTitles, 12);
+        setAvailableGames(randomGames);
+        setIsLoadingGames(false);
+      } catch (error) {
+        console.error('Error selecting random games:', error);
+        setGamesError('Error getting random games');
+        setIsLoadingGames(false);
+      }
+      return;
     }
-    setAvailableGames(games);
+    
+    // If we haven't loaded the titles yet, fetch them from the JSON file
+    fetch('/game-titles.json')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch game titles: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Store all game titles
+        if (data && data.gameTitles && Array.isArray(data.gameTitles)) {
+          setAllGameTitles(data.gameTitles);
+          
+          // Pick 12 random games for display
+          const randomGames = getRandomGames(data.gameTitles, 12);
+          setAvailableGames(randomGames);
+        } else {
+          throw new Error('Invalid game titles data');
+        }
+      })
+      .catch(error => {
+        console.error('Error loading game titles:', error);
+        setGamesError('Error loading games. Using default options.');
+        // Keep using the default games
+      })
+      .finally(() => {
+        setIsLoadingGames(false);
+      });
   };
   
-  // This function is now only used for the explicit refresh button
-  const fetchGameOptions = () => {
-    // Show loading state briefly for visual feedback
-    setIsLoadingGames(true);
+  // Helper function to get random games from a list
+  const getRandomGames = (gamesList, count) => {
+    // Check if we have enough games
+    if (!gamesList || gamesList.length === 0) {
+      throw new Error('No games available');
+    }
     
-    // Simulate a brief loading delay
-    setTimeout(() => {
-      shuffleGames();
-      setIsLoadingGames(false);
-    }, 500);
+    // If we have fewer games than requested, return all of them
+    if (gamesList.length <= count) {
+      return [...gamesList];
+    }
+    
+    // Get random games without duplicates
+    const result = [];
+    const tempList = [...gamesList];
+    
+    for (let i = 0; i < count; i++) {
+      const randomIndex = Math.floor(Math.random() * tempList.length);
+      result.push(tempList[randomIndex]);
+      tempList.splice(randomIndex, 1); // Remove the selected game to avoid duplicates
+    }
+    
+    return result;
   };
 
-  // Redirect if no username set
+  // Redirect if no username set and load game titles
   useEffect(() => {
     if (!user.username) {
       navigate('/');
       return;
     }
     
-    // Do NOT fetch game options on initial mount
-    // This prevents the automatic shuffling that was happening
+    // Fetch game titles from JSON on mount
+    fetchGameOptions();
     
     // Cleanup function
-    return () => {
-      // Any cleanup needed for WebSocket
-    };
+    return () => {};
+    
+    // Note: we're intentionally excluding fetchGameOptions from the dependency array
+    // to prevent it from running on every render, as it's a complex function that
+    // refers to state values that change when it runs
   }, [user.username, navigate]);
 
   // Refresh game options function - reuse the fetchGameOptions function
