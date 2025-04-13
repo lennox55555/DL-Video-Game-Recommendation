@@ -38,15 +38,9 @@ const MainPage = () => {
       }
     }, 5000);
 
-    // Request recommendations if needed (the Lambda should have already sent them)
-    if (user.hobbies.length > 0) {
-      websocketService.sendUserData({
-        username: user.username,
-        age: user.age,
-        games: user.hobbies,
-        action: 'getRecommendations'
-      });
-    }
+    // REMOVED the automatic request for recommendations 
+    // as they should have already been sent by HobbiesPage.jsx
+    console.log('Waiting for recommendations from HobbiesPage request...');
 
     return () => {
       clearTimeout(fallbackTimer);
@@ -70,6 +64,10 @@ const MainPage = () => {
           
           <p style={{ textAlign: 'center', color: '#cbd5e1', marginBottom: '1rem' }}>
             Your personalized space is ready
+          </p>
+          
+          <p style={{ textAlign: 'center', color: 'var(--color-accent-1)', marginBottom: '1rem', fontFamily: 'VT323, monospace' }}>
+            Using <span style={{ fontWeight: 'bold' }}>{user.modelType || 'Traditional'}</span> recommendation model
           </p>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
@@ -162,8 +160,10 @@ const MainPage = () => {
                 // Request fresh recommendations
                 websocketService.sendUserData({
                   username: user.username,
-                  age: user.age,
+                  // Removed age field
+                  modelType: user.modelType,
                   games: user.hobbies,
+                  gameRatings: user.gameRatings,
                   action: 'getRecommendations',
                   timestamp: new Date().getTime() // Add timestamp to ensure it's treated as a new request
                 });
