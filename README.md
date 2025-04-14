@@ -108,7 +108,10 @@ This dataset is used in our project to supply users information such as the user
 When it comes to previous efforts done on the datasets, only a few notebooks have been pushed to the Kaggle dataset repo. All of these notebooks are performing EDA on the datasets, but none of them have gone to the extent of creating models to recommend items. One of the notebooks implements an ML model, but that is used to predict game features rather than recommending games. 
 
 ## Model evaluation process & Metric Selection 
-How are we evaluating the modeling aproaches 
+
+To evaluate the effectiveness of the recommendation models, we employed a hybrid evaluation strategy focusing on both regression accuracy and ranking quality. The dataset is first split into a training and testing set, ensuring that only users seen during training are included in the test set to reflect a realistic inference scenario. Since the model is trained to predict the explicit user rating for a game (e.g., 8.5 out of 10), we first use Mean Squared Error (MSE) and Root Mean Squared Error (RMSE) to quantify how close the predicted ratings are to the actual user ratings. We also include the R² Score, which captures how much variance in user ratings the model can explain, offering a more interpretable metric for overall model fit. However, since the ultimate goal of the system is to recommend the most relevant games to users, we also evaluate how well the model ranks items using Mean Average Precision at K (MAP@10) and Normalized Discounted Cumulative Gain at K (NDCG@10). These ranking metrics assess how many of the top-K recommended games are actually relevant (MAP) and how highly ranked the relevant games are (NDCG), placing greater emphasis on correct recommendations near the top of the list. This hybrid evaluation setup ensures the model not only predicts ratings accurately but also delivers high-quality, position-aware recommendations in real-world usage
+
+
 
 ## Modeling Approach 
 
