@@ -6,7 +6,9 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState({
     username: '',
     age: 18,
+    modelType: '', // Deep Learning, Traditional, or Naive
     hobbies: [],
+    gameRatings: {}, // Store ratings for each game
     backgroundSettings: {
       brightness: 100,
       glow: 10,
@@ -73,6 +75,16 @@ export const UserProvider = ({ children }) => {
     }));
   };
 
+  const updateGameRating = (game, rating) => {
+    setUser(prevUser => ({
+      ...prevUser,
+      gameRatings: {
+        ...prevUser.gameRatings,
+        [game]: rating
+      }
+    }));
+  };
+
   const getRandomColor = () => {
     const colors = ['#8B5CF6', '#EC4899', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'];
     return colors[Math.floor(Math.random() * colors.length)];
@@ -84,7 +96,8 @@ export const UserProvider = ({ children }) => {
       updateUser, 
       updateBackgroundSettings,
       addHobby,
-      removeHobby
+      removeHobby,
+      updateGameRating
     }}>
       {children}
     </UserContext.Provider>

@@ -47,7 +47,7 @@ const GameCard = ({ game, selected, onClick }) => {
         boxShadow: selected ? `0 0 15px ${colorThemes[gameLower]?.accent}` : undefined
       }}
     >
-      <div className="card-game-icon">{icon}</div>
+      {/* Removed emoji icon */}
       <div className="card-game-title">{game}</div>
     </motion.div>
   );
