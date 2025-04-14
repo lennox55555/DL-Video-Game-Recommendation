@@ -118,6 +118,8 @@ This system reads the CSV of video games ratings and calculates the average rati
 
 ### Traditional Model 
 
+The traditional model uses a Random Forest Regressor to predict user ratings for video games based on game metadata. Features include release year, user ratings count (log-transformed), product rating, developer and publisher info, and multi-hot encoded genres. The model is tuned using RandomizedSearchCV to optimize RMSE performance on a train-test split. It then scores unrated games for each user and recommends the highest-predicted titles. This method balances interpretability and performance while attempting to capture non-linear feature interactions without deep learning.
+
 ### Deep Learning Model
 
 The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). 
