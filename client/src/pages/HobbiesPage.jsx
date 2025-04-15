@@ -296,23 +296,7 @@ const GamesPage = () => {
                 : 'Choose games to get personalized recommendations'}
           </p>
           
-          {!showRatings && (
-            <button 
-              onClick={refreshGameOptions}
-              disabled={isLoadingGames}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: 'var(--color-accent-1)',
-                cursor: isLoadingGames ? 'not-allowed' : 'pointer',
-                marginLeft: '10px',
-                opacity: isLoadingGames ? 0.5 : 1,
-                fontSize: '0.9rem'
-              }}
-            >
-              ↻ New Options
-            </button>
-          )}
+          {/* New Options button removed */}
         </div>
         
         {!showRatings ? (
