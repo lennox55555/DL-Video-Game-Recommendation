@@ -151,14 +151,9 @@ This system reads the CSV of video games ratings and calculates the average rati
 
 This script trains a traditional machine learning recommendation model for video games using metadata such as genre, platform, and critic/user scores. It leverages scikit-learn pipelines and preprocessing steps to encode categorical features, handle missing values, and scale numerical inputs. The model is trained using a RandomForestRegressor to predict user preferences based on aggregated features. Evaluation metrics such as MSE, RMSE, and R² are calculated to assess model performance. The final trained model is saved as a .pkl file and used by the backend to provide fast, lightweight recommendations in the GameQuest app.
 
-
-
 ### Deep Learning Model
 
 The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). The model is trained to predict ratings for video games and thus we have chosen to use MSE as the main metric for training.
-
-The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). The model is trained to predict ratings for video games and thus we have chosen to use MSE as the main metric for training.
-
 
 ## Data Processing pipeline 
 
