@@ -128,6 +128,9 @@ This system reads the CSV of video games ratings and calculates the average rati
 
 ### Traditional Model 
 
+This script trains a traditional machine learning recommendation model for video games using metadata such as genre, platform, and critic/user scores. It leverages scikit-learn pipelines and preprocessing steps to encode categorical features, handle missing values, and scale numerical inputs. The model is trained using a RandomForestRegressor to predict user preferences based on aggregated features. Evaluation metrics such as MSE, RMSE, and R² are calculated to assess model performance. The final trained model is saved as a .pkl file and used by the backend to provide fast, lightweight recommendations in the GameQuest app.
+
+
 
 ### Deep Learning Model
 
