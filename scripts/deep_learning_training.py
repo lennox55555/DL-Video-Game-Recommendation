@@ -218,7 +218,7 @@ class NCFRecommendationSystem(nn.Module):
         output = self.final_fc(x)
         return output.squeeze()
 
-def train_model(model, train_loader, optimizer, criterion, epochs=10):
+def train_model(model, train_loader, optimizer, alpha=0.6, epochs=10):
     '''
     Function to train the recommendation model
 
@@ -226,11 +226,14 @@ def train_model(model, train_loader, optimizer, criterion, epochs=10):
         - model: the recommender model
         - train_loader: DataLoader object for training data
         - optimizer: optimizer used for gradient descent
-        - criterion: loss function
+        - alpha: the hyperparameter to use to balance BPR loss and MSE
         - epochs: number of training epochs
     '''
     # set model to training mode
     model.train()
+
+    bpr = BPRLoss()
+    mse = nn.MSELoss()
     
     for epoch in range(epochs):
         train_loss = 0
@@ -246,11 +249,15 @@ def train_model(model, train_loader, optimizer, criterion, epochs=10):
             pos_scores = model(user_idx, game_idx)
             neg_game_idx = torch.randint(0, model.game_emb_gmf.num_embeddings, game_idx.shape, device=device)
             neg_scores = model(user_idx, neg_game_idx)
-            loss = criterion(pos_scores, neg_scores)
 
-            loss.backward()
+            bpr_loss = bpr(pos_scores, neg_scores)
+            mse_loss = mse(pos_scores, ratings)
+
+            total_loss = alpha * mse_loss + (1 - alpha) * bpr_loss
+
+            total_loss.backward()
             optimizer.step()
-            train_loss += loss.item()
+            train_loss += total_loss.item()
 
         if epoch % 1 == 0:
             print(f"Epoch {epoch} - Loss: {train_loss:.4f}")
@@ -332,15 +339,14 @@ def main():
     model = NCFRecommendationSystem(num_users, num_games)
     model.to(device)
 
-    # define the loss and the optimizer
-    criterion = BPRLoss()
+    # define the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     print('Starting Training')
 
     # train the model
     epochs = 900
-    train_model(model, train_loader, optimizer, criterion, epochs=epochs)
+    train_model(model, train_loader, optimizer, epochs=epochs)
 
     # save the trained model weights
     torch.save(model.state_dict(), './models/deep_learning_model.pth')

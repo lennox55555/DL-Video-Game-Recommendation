@@ -50,7 +50,8 @@ const GamesPage = () => {
     }
     
     // If we haven't loaded the titles yet, fetch them from the JSON file
-    fetch('/game-titles.json')
+    // Use the correct path that works with the base URL configuration
+    fetch('./game-titles.json')
       .then(response => {
         if (!response.ok) {
           throw new Error(`Failed to fetch game titles: ${response.status}`);
@@ -281,7 +282,7 @@ const GamesPage = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="glass-effect"
-        style={{ width: '100%', maxWidth: '768px', padding: '2rem' }}
+        style={{ width: '100%', maxWidth: '850px', padding: '1.5rem' }}
       >
         <h1 className="gradient-text" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
           {showRatings ? 'RATE YOUR GAMES' : 'SELECT YOUR GAMES'}
@@ -296,27 +297,11 @@ const GamesPage = () => {
                 : 'Choose games to get personalized recommendations'}
           </p>
           
-          {!showRatings && (
-            <button 
-              onClick={refreshGameOptions}
-              disabled={isLoadingGames}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: 'var(--color-accent-1)',
-                cursor: isLoadingGames ? 'not-allowed' : 'pointer',
-                marginLeft: '10px',
-                opacity: isLoadingGames ? 0.5 : 1,
-                fontSize: '0.9rem'
-              }}
-            >
-              ↻ New Options
-            </button>
-          )}
+          {/* New Options button removed */}
         </div>
         
         {!showRatings ? (
-          <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '2rem' }}>
+          <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '1.5rem', width: '100%' }}>
             {isLoadingGames ? (
               <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '2rem 0' }}>
                 <p>Loading game options...</p>

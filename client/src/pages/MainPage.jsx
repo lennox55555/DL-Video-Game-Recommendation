@@ -36,7 +36,7 @@ const MainPage = () => {
         ]);
         setLoading(false);
       }
-    }, 5000);
+    }, 30000);
 
     // REMOVED the automatic request for recommendations 
     // as they should have already been sent by HobbiesPage.jsx
@@ -148,30 +148,11 @@ const MainPage = () => {
               fontFamily: 'VT323, monospace',
               fontSize: '1.5rem'
             }}>
-              [ NO GAMES FOUND... PRESS REFRESH TO TRY AGAIN ]
+              [ NO RECOMMENDATIONS FOUND ]
             </div>
           )}
           
-          <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center' }}>
-            <BubbleButton 
-              primary={false}
-              onClick={() => {
-                setLoading(true);
-                // Request fresh recommendations
-                websocketService.sendUserData({
-                  username: user.username,
-                  // Removed age field
-                  modelType: user.modelType,
-                  games: user.hobbies,
-                  gameRatings: user.gameRatings,
-                  action: 'getRecommendations',
-                  timestamp: new Date().getTime() // Add timestamp to ensure it's treated as a new request
-                });
-              }}
-            >
-              REFRESH GAMES
-            </BubbleButton>
-          </div>
+          {/* Refresh button removed */}
         </div>
       </motion.div>
     </div>
