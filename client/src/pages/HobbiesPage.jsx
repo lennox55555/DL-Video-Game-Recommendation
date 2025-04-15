@@ -281,7 +281,7 @@ const GamesPage = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="glass-effect"
-        style={{ width: '100%', maxWidth: '768px', padding: '2rem' }}
+        style={{ width: '100%', maxWidth: '850px', padding: '1.5rem' }}
       >
         <h1 className="gradient-text" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
           {showRatings ? 'RATE YOUR GAMES' : 'SELECT YOUR GAMES'}
@@ -316,7 +316,7 @@ const GamesPage = () => {
         </div>
         
         {!showRatings ? (
-          <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '2rem' }}>
+          <div className="grid grid-2 grid-sm-3 grid-md-4" style={{ marginBottom: '1.5rem', width: '100%' }}>
             {isLoadingGames ? (
               <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: '2rem 0' }}>
                 <p>Loading game options...</p>
