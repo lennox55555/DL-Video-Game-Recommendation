@@ -3,8 +3,13 @@ import sys
 import argparse
 import subprocess
 from scripts.naive import NaiveGameRecommender
+from scripts.traditional_inference import TraditionalRecommender
 import json
 import pandas as pd
+import joblib
+import numpy as np
+import re
+from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder
 
 def parse_args():
     """Parse command line arguments"""
@@ -12,9 +17,9 @@ def parse_args():
     parser.add_argument(
         "--model", 
         type=str, 
-        default="both",
-        choices=["naive", "deep_learning", "both"], 
-        help="Model to use for recommendations: 'naive', 'deep_learning', or 'both' (default)"
+        default="all",
+        choices=["naive", "traditional", "deep_learning", "all"], 
+        help="Model to use for recommendations: 'naive', 'traditional', 'deep_learning', or 'all' (default)"
     )
     parser.add_argument(
         "--game", 
@@ -426,14 +431,148 @@ if __name__ == '__main__':
         print(f"Error running deep learning model: {str(e)}")
         return []
 
+def prepare_game_features(game_title):
+    """
+    Prepare feature vector for a game to use with the traditional model
+    """
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(project_root, "data")
+    
+    # Load games dataset
+    games_df = pd.read_csv(os.path.join(data_dir, "all_video_games.csv"))
+    
+    # Find the game
+    game_row = games_df[games_df['Title'].str.lower() == game_title.lower()]
+    
+    if game_row.empty:
+        print(f"Error: Game '{game_title}' not found in the dataset.")
+        return None
+    
+    # Preprocess the game data similar to traditional_training.py
+    game_data = game_row.copy()
+    game_data['Release Year'] = pd.to_datetime(game_data['Release Date'], errors='coerce').dt.year
+    game_data['Log Ratings Count'] = np.log1p(game_data['User Ratings Count'])
+    game_data['Game Age'] = 2025 - game_data['Release Year']
+    game_data['Genres'] = game_data['Genres'].apply(lambda x: re.split(',\s*', x.lower()) if isinstance(x, str) else [])
+    
+    return game_data
+
+def run_traditional_model(args):
+    """Run the traditional recommendation model"""
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(project_root, "models/traditional_model.pkl")
+    
+    if not os.path.exists(model_path):
+        print(f"Error: Traditional model file not found at {model_path}")
+        return []
+    
+    # Create necessary dirs
+    os.makedirs(os.path.join(project_root, "data/inference_data"), exist_ok=True)
+    
+    try:
+        # Prepare feature data if it doesn't exist
+        feature_path = os.path.join(project_root, "data/inference_data/traditional_feature_matrix.csv")
+        title_path = os.path.join(project_root, "data/inference_data/game_titles.csv")
+        
+        if not os.path.exists(feature_path) or not os.path.exists(title_path):
+            print("Preprocessing game data for traditional model...")
+            
+            # Load games dataset
+            games_df = pd.read_csv(os.path.join(project_root, "data/all_video_games.csv"))
+            
+            # Basic preprocessing
+            games_df = games_df[['Title', 'Release Date', 'Genres', 'Product Rating', 'Publisher', 'Developer', 'User Score', 'User Ratings Count']]
+            games_df = games_df.dropna(subset=['User Score', 'Release Date', 'Genres', 'Product Rating', 'User Ratings Count'])
+            games_df['User Score'] = pd.to_numeric(games_df['User Score'], errors='coerce')
+            games_df['Release Year'] = pd.to_datetime(games_df['Release Date'], errors='coerce').dt.year
+            games_df = games_df.dropna(subset=['User Score', 'Release Year'])
+            games_df['Log Ratings Count'] = np.log1p(games_df['User Ratings Count'])
+            games_df['Game Age'] = 2025 - games_df['Release Year']
+            games_df['Genres'] = games_df['Genres'].apply(lambda x: re.split(',\s*', x.lower()) if isinstance(x, str) else [])
+            
+            # Process categorical features similar to training
+            for col in ['Publisher', 'Developer']:
+                top_n = games_df[col].value_counts().nlargest(20).index
+                games_df[col] = games_df[col].where(games_df[col].isin(top_n), other='Other')
+            
+            # Extract features for inference
+            mlb = MultiLabelBinarizer()
+            genres_df = pd.DataFrame(mlb.fit_transform(games_df['Genres']), columns=mlb.classes_, index=games_df.index)
+            
+            ohe_rating = OneHotEncoder(sparse_output=False)
+            rating_df = pd.DataFrame(
+                ohe_rating.fit_transform(games_df[['Product Rating']]),
+                columns=ohe_rating.get_feature_names_out(['Product Rating']),
+                index=games_df.index
+            )
+            
+            pub_dev_ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+            pub_dev_encoded = pub_dev_ohe.fit_transform(games_df[['Publisher', 'Developer']])
+            pub_dev_df = pd.DataFrame(pub_dev_encoded, 
+                                     columns=pub_dev_ohe.get_feature_names_out(['Publisher', 'Developer']), 
+                                     index=games_df.index)
+            
+            # Combine features
+            features = pd.concat([
+                games_df[['Release Year', 'Log Ratings Count', 'Game Age']],
+                genres_df,
+                rating_df,
+                pub_dev_df
+            ], axis=1)
+            
+            # Save files for inference
+            titles_df = games_df[['Title']]
+            features.to_csv(feature_path, index=False)
+            titles_df.to_csv(title_path, index=False)
+            print("Preprocessed features saved for traditional model.")
+            
+        # Initialize recommender
+        print("\nInitializing Traditional recommendation model...")
+        recommender = TraditionalRecommender(
+            model_path=model_path,
+            feature_path=feature_path,
+            title_path=title_path
+        )
+        
+        # Get recommendations based on liked games
+        liked_games = [args.game]
+        top_n = args.top_n
+        
+        recommendations = recommender.recommend_games(liked_games=liked_games, top_n=top_n)
+        
+        # Display recommendations
+        print("\nTraditional Model Recommendations:")
+        for i, rec in enumerate(recommendations, 1):
+            print(f"{i}. {rec['title']} - {rec['description']}")
+            
+        return [rec['title'] for rec in recommendations]
+    
+    except Exception as e:
+        print(f"Error running traditional model: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
+
 def main():
     """Main function to run the appropriate model(s)"""
     args = parse_args()
     
-    if args.model.lower() == "naive" or args.model.lower() == "both":
+    if args.model.lower() in ["naive", "all"]:
+        print("\n" + "="*50)
+        print("RUNNING NAIVE MODEL")
+        print("="*50)
         naive_recommendations = run_naive_model(args)
     
-    if args.model.lower() == "deep_learning" or args.model.lower() == "both":
+    if args.model.lower() in ["traditional", "all"]:
+        print("\n" + "="*50)
+        print("RUNNING TRADITIONAL MODEL")
+        print("="*50)
+        traditional_recommendations = run_traditional_model(args)
+    
+    if args.model.lower() in ["deep_learning", "all"]:
+        print("\n" + "="*50)
+        print("RUNNING DEEP LEARNING MODEL")
+        print("="*50)
         deep_learning_recommendations = run_deep_learning_model(args)
 
 if __name__ == "__main__":

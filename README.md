@@ -50,9 +50,11 @@ This script performs the complete project initialization process:
 - Configures AWS using credentials from your .env file
 - Downloads all necessary data files from the configured S3 bucket
 - Creates required directories for data, inference_data, and models
-- Trains the Naive model on the downloaded data
-- Trains the Deep Learning recommendation model
-- Evaluates both models and reports performance metrics
+- Trains three recommendation models:
+  1. The Naive model that provides basic game recommendations
+  2. The Traditional ML model using a RandomForest regressor with hyperparameter tuning
+  3. The Deep Learning model using Neural Collaborative Filtering architecture
+- Evaluates all models and reports performance metrics
 
 The setup.py script serves as the entry point for new users, automating the entire setup process to get you from a fresh clone to a fully functioning recommendation system in one command.
 
@@ -65,16 +67,17 @@ python main.py
 
 The main.py script functions as the inference engine for all recommendation models:
 - Provides a command-line interface for running recommendation models
-- Supports three modes: "naive", "deep_learning", or "both" models
+- Supports four modes: "naive", "traditional", "deep_learning", or "all" models
 - Accepts a target game name and returns similar games as recommendations
 - Can display detailed evaluation metrics for model performance
 - Handles all path management and file access
 - For deep learning inference, it creates necessary directories and files if they don't exist
 - Passes the correct model path (deep_learning_model_500_combined.pth) to the inference script
+- For traditional model, loads the trained RandomForest model from models/traditional_model.pkl
 
 Options available:
 ```bash
-python main.py --model [naive|deep_learning|both] --game [game_name] --top_n [number] --metrics
+python main.py --model [naive|traditional|deep_learning|all] --game [game_name] --top_n [number] --metrics
 ```
 
 By default, it will run both models and return 5 recommendations for "minecraft" if no arguments are provided.
