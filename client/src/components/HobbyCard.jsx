@@ -36,6 +36,22 @@ const GameCard = ({ game, selected, onClick }) => {
   const gameLower = game.toLowerCase().replace(/[^a-z0-9]/g, '');
   const icon = iconMap[gameLower] || '🎮';
 
+  // Apply minimal formatting for extremely long titles
+  const formatGameTitle = (title) => {
+    // For titles longer than 25 chars, do some minimal formatting
+    if (title.length > 25) {
+      // Remove any parenthetical information
+      const withoutParentheses = title.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+      
+      // Remove any "The" at the beginning
+      const withoutThe = withoutParentheses.replace(/^The\s+/i, '');
+      
+      // If still too long, use the shorter version
+      return withoutThe.length < title.length ? withoutThe : title;
+    }
+    return title;
+  };
+
   return (
     <motion.div
       onClick={() => onClick(game, colorThemes[gameLower])}
@@ -46,9 +62,9 @@ const GameCard = ({ game, selected, onClick }) => {
         borderColor: selected ? colorThemes[gameLower]?.primary : undefined,
         boxShadow: selected ? `0 0 15px ${colorThemes[gameLower]?.accent}` : undefined
       }}
+      title={game} // Show full title on hover
     >
-      <div className="card-game-icon">{icon}</div>
-      <div className="card-game-title">{game}</div>
+      <div className="card-game-title">{formatGameTitle(game)}</div>
     </motion.div>
   );
 };
