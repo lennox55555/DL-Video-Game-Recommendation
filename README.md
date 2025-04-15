@@ -109,8 +109,9 @@ When it comes to previous efforts done on the datasets, only a few notebooks hav
 
 ## Model evaluation process & Metric Selection 
 
-To evaluate the effectiveness of the recommendation models, we employed a hybrid evaluation strategy focusing on both regression accuracy and ranking quality. The dataset is first split into a training and testing set, ensuring that only users seen during training are included in the test set to reflect a realistic inference scenario. Since the model is trained to predict the explicit user rating for a game (e.g., 8.5 out of 10), we first use Mean Squared Error (MSE) and Root Mean Squared Error (RMSE) to quantify how close the predicted ratings are to the actual user ratings. We also include the R² Score, which captures how much variance in user ratings the model can explain, offering a more interpretable metric for overall model fit. However, since the ultimate goal of the system is to recommend the most relevant games to users, we also evaluate how well the model ranks items using Mean Average Precision at K (MAP@10) and Normalized Discounted Cumulative Gain at K (NDCG@10). These ranking metrics assess how many of the top-K recommended games are actually relevant (MAP) and how highly ranked the relevant games are (NDCG), placing greater emphasis on correct recommendations near the top of the list. This hybrid evaluation setup ensures the model not only predicts ratings accurately but also delivers high-quality, position-aware recommendations in real-world usage
+The model is evaluated using offline metrics on a held-out test set that contains user-game interactions not seen during training. For each user, the model generates a ranked list of top-K recommended games, excluding items the user has already interacted with. The predicted list is compared against the actual set of games rated by the user in the test set. The evaluation script computes four ranking-based metrics: Precision@K, Recall@K, Mean Average Precision (MAP@K), and Normalized Discounted Cumulative Gain (NDCG@K). These metrics were chosen to assess the model's ability to rank relevant items at the top of the recommendation list. Precision@K captures how many of the top-K items are actually relevant, Recall@K measures coverage of the relevant items, MAP@K rewards both relevance and ordering, and NDCG@K emphasizes the importance of placing relevant items earlier in the list. Together, they provide a comprehensive view of recommendation quality beyond simple rating prediction
 
+To evaluate the effectiveness of the recommendation models, we employed a hybrid evaluation strategy focusing on both regression accuracy and ranking quality. The dataset is first split into a training and testing set, ensuring that only users seen during training are included in the test set to reflect a realistic inference scenario. Since the model is trained to predict the explicit user rating for a game (e.g., 8.5 out of 10), we first use Mean Squared Error (MSE) and Root Mean Squared Error (RMSE) to quantify how close the predicted ratings are to the actual user ratings. We also include the R² Score, which captures how much variance in user ratings the model can explain, offering a more interpretable metric for overall model fit. However, since the ultimate goal of the system is to recommend the most relevant games to users, we also evaluate how well the model ranks items using Mean Average Precision at K (MAP@10) and Normalized Discounted Cumulative Gain at K (NDCG@10). These ranking metrics assess how many of the top-K recommended games are actually relevant (MAP) and how highly ranked the relevant games are (NDCG), placing greater emphasis on correct recommendations near the top of the list. This hybrid evaluation setup ensures the model not only predicts ratings accurately but also delivers high-quality, position-aware recommendations in real-world usage
 
 
 ## Modeling Approach 
@@ -121,10 +122,11 @@ This system reads the CSV of video games ratings and calculates the average rati
 
 ### Traditional Model 
 
+
 ### Deep Learning Model
 
-
 The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). The model is trained to predict ratings for video games and thus we have chosen to use MSE as the main metric for training.
+
 
 ## Data Processing pipeline 
 
@@ -132,13 +134,25 @@ The preprocessing pipeline first cleans the video game dataset by handling missi
 
 
 ## Models evaluated and Model Selected 
-Talk about the actual model performances here and which model we would select
+**Naive Approach results**
 
-## Comparison to Naive Approach 
+- MSE: 8.4607
+- RMSE: 2.9087
+- R^2: -0.3020
+- MAP@10: 0.0007
+- NDCG@10: 0.0017
+
+**Traditional Approach results**
+
+
+
+**DL Apporach results**
+We explored multiple deep learning approaches to recommendation, evaluating how different training objectives affect both rating accuracy and recommendation quality. The first model followed the standard Neural Collaborative Filtering (NCF) architecture trained with Mean Squared Error (MSE) loss to predict explicit user ratings. This model achieved excellent regression performance (MSE: 0.0177, RMSE: 0.1330, R²: 0.9978), but its ability to rank relevant games was limited (MAP@10: 0.0199, NDCG@10: 0.0457), revealing a disconnect between accurate rating prediction and practical recommendation quality. To address this, we trained a second version of the model using Bayesian Personalized Ranking (BPR) loss, optimizing directly for pairwise ranking. This model dramatically improved ranking metrics (MAP@10: 0.9253, NDCG@10: 0.9435) but lost accuracy in rating prediction (RMSE: 8.04), making it unsuitable for regression-based scoring. Observing the complementary strengths of both models, we introduced a hybrid training objective combining the two loss functions: α * MSE + (1 - α) * BPR. This combined approach delivered strong performance across the board, balancing rating accuracy (MSE: 0.2047, RMSE: 0.4525, R²: 0.9740) with robust ranking metrics (MAP@10: 0.8955, NDCG@10: 0.9236). A hybrid approach with both content-based and collaborative filtering might be better for our use case. However, due to time constraints, we decided to go with the model combining both losses for our deep learning approach.
+
 Compare traditional and DL to the naive approach
 
 ## Demo of Deployed App 
-Insert link to the deployed app 
+[Insert link to the deployed app]
 
 ## Results and Conclusions 
 Quick TLDR of what's in the README 
@@ -154,3 +168,4 @@ We are committed to transparency, ethical data usage, and improving bias mitigat
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
