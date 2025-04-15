@@ -82,9 +82,6 @@ python main.py --model [naive|traditional|deep_learning|all] --game [game_name] 
 
 By default, it will run both models and return 5 recommendations for "minecraft" if no arguments are provided.
 
-
-
-
 ## Project Structure
 
 ```
@@ -232,7 +229,12 @@ On the test dataset:
 
 **Traditional Approach results**
 
-
+On test dataset:
+- MSE:   38.4967
+- RMSE:  6.2046
+- R^2:   -4.3942
+- MAP@10: 0.0000
+- NDCG@10: 0.0000
 
 **DL Approach results**
 
@@ -246,11 +248,15 @@ On the test dataset:
 - Regression Metrics → MSE: 22.4380 | RMSE: 4.7369 | R²: -0.9044
 - Ranking Metrics → MAP@10: 0.5701 | NDCG@10: 0.7211
 
+**Given the evaluation results, we should choose the Deep Learning NCF model. Results could be improved with more training since we only trained it on 500 epochs and the last loss was at ~22 (which explains the MSE we currently see)**
+
 ## Demo of Deployed App 
-[Insert link to the deployed app]
+[Live Demo](<lennoxanderson.com/videogamerecs/>)
 
 ## Results and Conclusions 
-Quick TLDR of what's in the README 
+
+The results from our evaluation clearly demonstrate the strengths and limitations of each approach in our game recommendation system. The naive model, while simple to implement and interpret, struggled significantly with both rating prediction and ranking performance, highlighting the limitations of using global averages for personalization. The traditional machine learning model, built using Random Forests on tabular metadata, improved slightly on rating prediction but still failed to produce meaningful personalized recommendations—both MAP@10 and NDCG@10 were near zero, indicating no ability to rank relevant games for users. In contrast, the deep learning models achieved significant gains. The NCF model trained with MSE loss achieved excellent regression accuracy (RMSE: 0.1330, R²: 0.9978), but had weak ranking performance (MAP@10: 0.0199). On the other hand, the BPR-trained model optimized directly for ranking, yielding exceptional MAP@10 (0.9253) and NDCG@10 (0.9435), though it was ineffective at predicting actual ratings. To bridge the gap, we introduced a hybrid loss function that combines MSE and BPR objectives. This combined deep learning model maintained strong regression performance (RMSE: 0.4525, R²: 0.9740) while preserving high ranking metrics (MAP@10: 0.8955, NDCG@10: 0.9236). These results confirm that leveraging both explicit user feedback and pairwise ranking signals provides a more balanced and practical recommendation system. The hybrid deep learning model emerged as the most effective approach, producing high-quality, personalized, and explainable recommendations, and is thus deployed in the final version of our application
+
 
 ## Ethics Statement
 

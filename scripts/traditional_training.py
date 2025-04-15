@@ -120,7 +120,7 @@ def main():
     best_model = train_model(X_train, y_train)
 
     preds = best_model.predict(X_test)
-    rmse = mean_squared_error(y_test, preds, squared=False)
+    rmse = mean_squared_error(y_test, preds)
     print(f"✅ Tuned Random Forest RMSE: {rmse:.4f}")
 
     os.makedirs("models", exist_ok=True)
