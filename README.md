@@ -108,7 +108,10 @@ This dataset is used in our project to supply users information such as the user
 When it comes to previous efforts done on the datasets, only a few notebooks have been pushed to the Kaggle dataset repo. All of these notebooks are performing EDA on the datasets, but none of them have gone to the extent of creating models to recommend items. One of the notebooks implements an ML model, but that is used to predict game features rather than recommending games. 
 
 ## Model evaluation process & Metric Selection 
-How are we evaluating the modeling aproaches 
+
+To evaluate the effectiveness of the recommendation models, we employed a hybrid evaluation strategy focusing on both regression accuracy and ranking quality. The dataset is first split into a training and testing set, ensuring that only users seen during training are included in the test set to reflect a realistic inference scenario. Since the model is trained to predict the explicit user rating for a game (e.g., 8.5 out of 10), we first use Mean Squared Error (MSE) and Root Mean Squared Error (RMSE) to quantify how close the predicted ratings are to the actual user ratings. We also include the R² Score, which captures how much variance in user ratings the model can explain, offering a more interpretable metric for overall model fit. However, since the ultimate goal of the system is to recommend the most relevant games to users, we also evaluate how well the model ranks items using Mean Average Precision at K (MAP@10) and Normalized Discounted Cumulative Gain at K (NDCG@10). These ranking metrics assess how many of the top-K recommended games are actually relevant (MAP) and how highly ranked the relevant games are (NDCG), placing greater emphasis on correct recommendations near the top of the list. This hybrid evaluation setup ensures the model not only predicts ratings accurately but also delivers high-quality, position-aware recommendations in real-world usage
+
+
 
 ## Modeling Approach 
 
@@ -118,11 +121,10 @@ This system reads the CSV of video games ratings and calculates the average rati
 
 ### Traditional Model 
 
-The traditional model uses a Random Forest Regressor to predict user ratings for video games based on game metadata. Features include release year, user ratings count (log-transformed), product rating, developer and publisher info, and multi-hot encoded genres. The model is tuned using RandomizedSearchCV to optimize RMSE performance on a train-test split. It then scores unrated games for each user and recommends the highest-predicted titles. This method balances interpretability and performance while attempting to capture non-linear feature interactions without deep learning.
-
 ### Deep Learning Model
 
-The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). 
+
+The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). The model is trained to predict ratings for video games and thus we have chosen to use MSE as the main metric for training.
 
 ## Data Processing pipeline 
 
