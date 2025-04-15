@@ -36,7 +36,7 @@ const MainPage = () => {
         ]);
         setLoading(false);
       }
-    }, 5000);
+    }, 30000);
 
     // REMOVED the automatic request for recommendations 
     // as they should have already been sent by HobbiesPage.jsx
