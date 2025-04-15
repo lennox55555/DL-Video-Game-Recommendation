@@ -50,7 +50,8 @@ const GamesPage = () => {
     }
     
     // If we haven't loaded the titles yet, fetch them from the JSON file
-    fetch('/game-titles.json')
+    // Use the correct path that works with the base URL configuration
+    fetch('./game-titles.json')
       .then(response => {
         if (!response.ok) {
           throw new Error(`Failed to fetch game titles: ${response.status}`);

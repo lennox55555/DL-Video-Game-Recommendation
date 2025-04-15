@@ -170,6 +170,56 @@ The model uses a Neural Collaborative Filtering (NCF) architecture with separate
 The model uses a Neural Collaborative Filtering (NCF) architecture with separate GMF and MLP embedding layers. GMF computes the element-wise product of user and item embeddings to capture linear interactions. MLP concatenates the same embeddings and passes them through two fully connected layers with ReLU and dropout to model non-linear interactions. Outputs from both paths are concatenated and passed through a final linear layer to predict ratings. The model is trained using MSE loss and the Adam optimizer. Training uses a custom PyTorch Dataset and DataLoader, with 20% of the user-game interaction data used for training. The model runs for 50 epochs and saves weights after training for inference. The reason we are using 20% of the user-game interaction data for training is because the dataset is extremely big and our machines kept crashing (20% of the data still contains +100,000 data points). The model is trained to predict ratings for video games and thus we have chosen to use MSE as the main metric for training.
 
 
+## Deployment to a Subpath
+
+The frontend application is configured to be deployed to the `/videogamerecs/` subpath on your domain. To build and deploy the application:
+
+1. **Build the frontend application**
+
+```bash
+cd client
+npm install terser --save-dev  # Install terser dependency if not already installed
+npm run build
+```
+
+This will create a production-ready build in the `client/dist` directory, configured to run at `yourwebsite.com/videogamerecs/`.
+
+2. **Upload the build files to your web server**
+
+Upload the contents of the `client/dist` directory to the `/videogamerecs` path on your web server.
+
+3. **Server Configuration**
+
+Ensure your web server is configured to:
+- Serve the static files from the `/videogamerecs` directory
+- Redirect all requests to that directory to `index.html` for client-side routing
+
+For Apache, add this to your `.htaccess` file:
+
+```apache
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /videogamerecs/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /videogamerecs/index.html [L]
+</IfModule>
+```
+
+For Nginx, add this to your server configuration:
+
+```nginx
+location /videogamerecs/ {
+  alias /path/to/your/dist/;
+  try_files $uri $uri/ /videogamerecs/index.html;
+}
+```
+
+4. **Configuring Backend Endpoints**
+
+If your backend API is also hosted on your website, update the WebSocket connection URL in `client/src/services/websocketService.js` to point to your own API endpoint.
+
 ## Data Processing pipeline 
 
 The preprocessing pipeline first cleans the video game dataset by handling missing values, standardizing genres, and parsing nested platform information. Genres are converted to lowercase, stripped of whitespace, deduplicated, and one-hot encoded using MultiLabelBinarizer. Platform information is extracted from stringified dictionaries into separate lists of platform names and metascores, which are then expanded into individual columns. Additional features like developer, publisher, product rating, and user score are filled or imputed. The Release Date is converted into a Release Year integer. The final game dataset includes binary genre indicators and platform-specific metascore columns. In parallel, the user interaction dataset is processed by mapping user IDs and game titles to index-based IDs (user_idx, game_idx) using dictionaries for embedding compatibility. Cleaned datasets and mapping files are saved for downstream model use.
